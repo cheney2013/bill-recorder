@@ -90,6 +90,8 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
   const outTimerRef = useRef<number | null>(null);
   const inTimerRef = useRef<number | null>(null);
   const animOffTimerRef = useRef<number | null>(null);
+  const activePointerIdRef = useRef<number | null>(null);
+  const finishingRef = useRef(false);
 
   const applyTransform = (x: number, withTransition: boolean) => {
     const el = containerRef.current;
@@ -98,10 +100,32 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
     el.style.transform = `translateX(${x}px)`;
   };
 
+  const clearTimers = () => {
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    if (outTimerRef.current) { clearTimeout(outTimerRef.current); outTimerRef.current = null; }
+    if (inTimerRef.current) { clearTimeout(inTimerRef.current); inTimerRef.current = null; }
+    if (animOffTimerRef.current) { clearTimeout(animOffTimerRef.current); animOffTimerRef.current = null; }
+  };
+
+  const hardReset = () => {
+    finishingRef.current = false;
+    startXRef.current = null;
+    activePointerIdRef.current = null;
+    dragXRef.current = 0;
+    setDragging(false);
+    setAnimating(false);
+    applyTransform(0, false);
+  };
+
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+    if (animating || finishingRef.current) return; // don't start while animating
+    if (activePointerIdRef.current != null) return; // single-pointer guard
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
+    activePointerIdRef.current = e.pointerId;
     startXRef.current = e.clientX;
     widthRef.current = containerRef.current?.getBoundingClientRect().width || 1;
+    clearTimers();
     setDragging(true);
     setAnimating(false);
     dragXRef.current = 0;
@@ -109,6 +133,7 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
   };
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (startXRef.current == null) return;
+    if (activePointerIdRef.current !== e.pointerId) return;
     const dx = e.clientX - startXRef.current;
     if (Math.abs(dx) > 4) e.preventDefault();
     // Follow finger horizontally, clamp to width
@@ -121,38 +146,68 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
       });
     }
   };
-  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (startXRef.current == null) return;
-    const dx = e.clientX - startXRef.current;
-    startXRef.current = null;
+  const finishDrag = (commit: boolean, direction: 'left' | 'right' | null) => {
+    if (finishingRef.current) return;
+    finishingRef.current = true;
     const w = widthRef.current;
-    const threshold = Math.max(60, w * 0.2);
-    const commitLeft = dx < -threshold; // to next (newer)
-    const commitRight = dx > threshold; // to prev (older)
-  if ((commitLeft && canNext) || (commitRight && canPrev)) {
+    if (commit && ((direction === 'left' && canNext) || (direction === 'right' && canPrev))) {
       // Slide out in drag direction
       setAnimating(true);
-    applyTransform(commitLeft ? -w : w, true);
+      applyTransform(direction === 'left' ? -w : w, true);
       // After slide-out, switch month, position off-screen opposite, then slide-in to 0
-    outTimerRef.current = window.setTimeout(() => {
-        if (commitLeft) gotoNext(); else gotoPrev();
+      outTimerRef.current = window.setTimeout(() => {
+        if (direction === 'left') gotoNext(); else gotoPrev();
         // position new content just outside in opposite direction
-        applyTransform(commitLeft ? w : -w, false);
+        applyTransform(direction === 'left' ? w : -w, false);
         // next tick animate into place
         requestAnimationFrame(() => {
           applyTransform(0, true);
       // turn off animating quickly so tooltip comes back sooner
       animOffTimerRef.current = window.setTimeout(() => { setAnimating(false); }, 80);
       // end dragging after slide-in
-      inTimerRef.current = window.setTimeout(() => { setDragging(false); }, SLIDE_MS);
+      inTimerRef.current = window.setTimeout(() => {
+            setDragging(false);
+            finishingRef.current = false;
+            activePointerIdRef.current = null;
+            applyTransform(0, false); // ensure exact reset
+          }, SLIDE_MS);
         });
-    }, SLIDE_MS);
+      }, SLIDE_MS);
     } else {
       // Snap back
       setAnimating(true);
       applyTransform(0, true);
-    outTimerRef.current = window.setTimeout(() => { setDragging(false); setAnimating(false); }, SLIDE_MS - 20);
+      outTimerRef.current = window.setTimeout(() => {
+        setDragging(false);
+        setAnimating(false);
+        finishingRef.current = false;
+        activePointerIdRef.current = null;
+        applyTransform(0, false);
+      }, SLIDE_MS - 10);
     }
+    startXRef.current = null;
+  };
+
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (startXRef.current == null) return;
+    if (activePointerIdRef.current !== e.pointerId) return;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+    const w = widthRef.current;
+    const threshold = Math.max(60, w * 0.2);
+    const x = dragXRef.current;
+    const commitLeft = x < -threshold;
+    const commitRight = x > threshold;
+    finishDrag(commitLeft || commitRight, commitLeft ? 'left' : commitRight ? 'right' : null);
+  };
+
+  const onPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (activePointerIdRef.current !== e.pointerId) return;
+    finishDrag(false, null);
+  };
+
+  const onLostPointerCapture = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (activePointerIdRef.current !== e.pointerId) return;
+    finishDrag(false, null);
   };
 
   // Cleanup timers on unmount
@@ -185,7 +240,7 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
       </div>
       
       {chartData.length > 0 ? (
-        <div className="relative" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} style={{ touchAction: 'pan-y' }}>
+  <div className="relative" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onLostPointerCapture={onLostPointerCapture} style={{ touchAction: 'pan-y' }}>
           <div ref={containerRef} className="relative">
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                <span className="text-sm text-gray-500">{formattedMonth}总支出</span>
