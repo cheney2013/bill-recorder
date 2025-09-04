@@ -2,6 +2,7 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Transaction, Category } from '../types';
 import { CATEGORY_COLORS } from '../constants';
 import { PlusIcon, PencilIcon, TrashIcon } from './icons';
+import { SwipeToDelete } from './SwipeToDelete';
 import { VariableSizeList as List, ListChildComponentProps } from 'react-window';
 
 interface TransactionListProps {
@@ -115,12 +116,12 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
     const t = it.tx;
     return (
       <div style={style} className="px-0">
-        <div
-          className="rounded-lg border border-gray-200 p-3 active:bg-gray-50 transition-colors"
-          onClick={() => onRecordClick(t.name)}
-          role="button"
-          aria-label={`查看 ${t.name} 的记录`}
-        >
+        <SwipeToDelete className="rounded-lg border border-gray-200 p-3 transition-colors bg-white" onDelete={() => onDeleteClick(t.id)}>
+          <div
+            onClick={() => onRecordClick(t.name)}
+            role="button"
+            aria-label={`查看 ${t.name} 的记录`}
+          >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -134,27 +135,18 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
             </div>
             <div className="flex flex-col items-end gap-2">
               <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>
-              <div className="flex items-center gap-1.5">
-    <button
-                  onClick={(e) => { e.stopPropagation(); onEditClick(t); }}
-                  title="编辑"
-                  className="text-blue-600 hover:text-blue-700 p-1.5 rounded-md active:bg-blue-50"
-                  aria-label={`编辑 ${t.name}`}
-                >
-                  <PencilIcon className="w-5 h-5" />
-                </button>
-    <button
-                  onClick={(e) => { e.stopPropagation(); onDeleteClick(t.id); }}
-                  title="删除"
-                  className="text-red-600 hover:text-red-700 p-1.5 rounded-md active:bg-red-50"
-                  aria-label={`删除 ${t.name}`}
-                >
-                  <TrashIcon className="w-5 h-5" />
-                </button>
-              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); onEditClick(t); }}
+                title="编辑"
+                className="text-blue-600 hover:text-blue-700 p-1.5 rounded-md active:bg-blue-50"
+                aria-label={`编辑 ${t.name}`}
+              >
+                <PencilIcon className="w-5 h-5" />
+              </button>
             </div>
           </div>
-  </div>
+          </div>
+        </SwipeToDelete>
       </div>
     );
   };

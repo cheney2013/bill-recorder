@@ -17,4 +17,11 @@ body {
 /* Enable smooth scrolling */
 html {
   scroll-behavior: smooth;
+  touch-action: manipulation; /* helps prevent double-tap zoom */
+  overscroll-behavior-y: none; /* prevent rubber-band scrolling affecting fixed bars */
+}
+
+/* Prevent bounce within scroll containers on mobile */
+body, #root {
+  overscroll-behavior: contain;
 }

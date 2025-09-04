@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { Transaction } from '../types';
 import { CATEGORY_COLORS } from '../constants';
-import { ChevronLeftIcon, ChevronRightIcon, PencilIcon, TrashIcon, BarsArrowDownIcon } from './icons';
+import { PencilIcon, TrashIcon, BarsArrowDownIcon } from './icons';
 import { CategoryBadge } from './TransactionList';
+import { SwipeToDelete } from './SwipeToDelete';
 
 interface CategoryChartProps {
   transactions: Transaction[];
@@ -77,6 +78,93 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
   const gotoPrev = () => { if (canPrev) setCurrentMonth(monthOptions[currentIndex + 1]); };
   const gotoNext = () => { if (canNext) setCurrentMonth(monthOptions[currentIndex - 1]); };
 
+  // Drag-to-switch with follow + snap
+  const SLIDE_MS = 140; // shorter slide duration for snappier feel
+  const startXRef = useRef<number | null>(null);
+  const widthRef = useRef<number>(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const [animating, setAnimating] = useState(false); // only for tooltip suppression
+  const dragXRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
+  const outTimerRef = useRef<number | null>(null);
+  const inTimerRef = useRef<number | null>(null);
+  const animOffTimerRef = useRef<number | null>(null);
+
+  const applyTransform = (x: number, withTransition: boolean) => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.style.transition = withTransition ? `transform ${SLIDE_MS}ms ease-out` : 'none';
+    el.style.transform = `translateX(${x}px)`;
+  };
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+    startXRef.current = e.clientX;
+    widthRef.current = containerRef.current?.getBoundingClientRect().width || 1;
+    setDragging(true);
+    setAnimating(false);
+    dragXRef.current = 0;
+    applyTransform(0, false);
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (startXRef.current == null) return;
+    const dx = e.clientX - startXRef.current;
+    if (Math.abs(dx) > 4) e.preventDefault();
+    // Follow finger horizontally, clamp to width
+    const w = widthRef.current;
+    dragXRef.current = Math.max(-w, Math.min(w, dx));
+    if (rafRef.current == null) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        applyTransform(dragXRef.current, false);
+      });
+    }
+  };
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (startXRef.current == null) return;
+    const dx = e.clientX - startXRef.current;
+    startXRef.current = null;
+    const w = widthRef.current;
+    const threshold = Math.max(60, w * 0.2);
+    const commitLeft = dx < -threshold; // to next (newer)
+    const commitRight = dx > threshold; // to prev (older)
+  if ((commitLeft && canNext) || (commitRight && canPrev)) {
+      // Slide out in drag direction
+      setAnimating(true);
+    applyTransform(commitLeft ? -w : w, true);
+      // After slide-out, switch month, position off-screen opposite, then slide-in to 0
+    outTimerRef.current = window.setTimeout(() => {
+        if (commitLeft) gotoNext(); else gotoPrev();
+        // position new content just outside in opposite direction
+        applyTransform(commitLeft ? w : -w, false);
+        // next tick animate into place
+        requestAnimationFrame(() => {
+          applyTransform(0, true);
+      // turn off animating quickly so tooltip comes back sooner
+      animOffTimerRef.current = window.setTimeout(() => { setAnimating(false); }, 80);
+      // end dragging after slide-in
+      inTimerRef.current = window.setTimeout(() => { setDragging(false); }, SLIDE_MS);
+        });
+    }, SLIDE_MS);
+    } else {
+      // Snap back
+      setAnimating(true);
+      applyTransform(0, true);
+    outTimerRef.current = window.setTimeout(() => { setDragging(false); setAnimating(false); }, SLIDE_MS - 20);
+    }
+  };
+
+  // Cleanup timers on unmount
+  React.useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (outTimerRef.current) clearTimeout(outTimerRef.current);
+      if (inTimerRef.current) clearTimeout(inTimerRef.current);
+    if (animOffTimerRef.current) clearTimeout(animOffTimerRef.current);
+    };
+  }, []);
+
   return (
     <div className="bg-white p-6 rounded-xl shadow-md">
       <div className="flex justify-between items-center mb-4 gap-3">
@@ -84,15 +172,6 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
           <h2 className="text-lg font-semibold text-gray-800">分类支出</h2>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={gotoPrev}
-            disabled={!canPrev}
-            className="p-2 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
-            aria-label="上个月"
-            title="上个月"
-          >
-            <ChevronLeftIcon className="w-5 h-5" />
-          </button>
           <select 
               value={currentMonth} 
               onChange={e => setCurrentMonth(e.target.value)}
@@ -102,27 +181,19 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
               <option key={month} value={month}>{new Date(month + '-01T00:00:00').toLocaleDateString('zh-CN', { month: 'long', year: 'numeric' })}</option>
             ))}
           </select>
-          <button
-            onClick={gotoNext}
-            disabled={!canNext}
-            className="p-2 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40"
-            aria-label="下个月"
-            title="下个月"
-          >
-            <ChevronRightIcon className="w-5 h-5" />
-          </button>
         </div>
       </div>
       
       {chartData.length > 0 ? (
-        <div className="relative">
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-             <span className="text-sm text-gray-500">{formattedMonth}总支出</span>
-             <span className="text-2xl font-bold text-gray-800">¥{totalAmount}</span>
-          </div>
-          <div className="-mx-6">
-          <ResponsiveContainer width="100%" height={320}>
-            <PieChart margin={{ top: 24, bottom: 24, left: 28, right: 28 }}>
+        <div className="relative" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} style={{ touchAction: 'pan-y' }}>
+          <div ref={containerRef} className="relative">
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+               <span className="text-sm text-gray-500">{formattedMonth}总支出</span>
+               <span className="text-2xl font-bold text-gray-800">¥{totalAmount}</span>
+            </div>
+            <div className="-mx-6">
+            <ResponsiveContainer width="100%" height={320}>
+              <PieChart margin={{ top: 24, bottom: 24, left: 28, right: 28 }}>
               <Pie
                 data={chartData}
                 cx="50%"
@@ -141,9 +212,10 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
                   <Cell key={`cell-${entry.name}`} fill={CATEGORY_COLORS[entry.name as keyof typeof CATEGORY_COLORS]} className="focus:outline-none"/>
                 ))}
               </Pie>
-              <Tooltip formatter={(value: number) => `¥${value.toFixed(2)}`} />
-            </PieChart>
-          </ResponsiveContainer>
+              {!dragging && !animating && <Tooltip formatter={(value: number) => `¥${value.toFixed(2)}`} />}
+              </PieChart>
+            </ResponsiveContainer>
+            </div>
           </div>
           </div>
       ) : (
@@ -173,40 +245,34 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
             </div>
           </div>
           {monthlyTransactions.length > 0 ? (
-            <ul className="divide-y divide-gray-100">
+            <ul className="space-y-3">
               {monthlyTransactions.map((t) => (
-                <li key={t.id} className="py-3 flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-nowrap">
-                      <p className="font-medium text-gray-900 truncate min-w-0 flex-1" title={t.name}>{t.name}</p>
-                      <CategoryBadge category={t.category} />
+                <li key={t.id} className="py-0">
+                  <SwipeToDelete className="w-full rounded-lg border border-gray-200 p-3 bg-white" onDelete={() => onDeleteClick && onDeleteClick(t.id)}>
+                    <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900 truncate max-w-[12rem]" title={t.name}>{t.name}</p>
+                        <CategoryBadge category={t.category} />
+                      </div>
+                      {t.location && (
+                        <p className="text-xs text-gray-500 mt-0.5 truncate" title={t.location}>{t.location}</p>
+                      )}
+                      <p className="text-xs text-gray-500 mt-0.5">{t.date.replace('T', ' ')}</p>
                     </div>
-                    {t.location && (
-                      <p className="text-xs text-gray-500 mt-0.5 truncate" title={t.location}>{t.location}</p>
-                    )}
-                    <p className="text-xs text-gray-500 mt-0.5">{t.date.replace('T', ' ')}</p>
-                  </div>
-                  <div className="shrink-0 text-right flex flex-col items-end gap-2">
-                    <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => onEditClick && onEditClick(t)}
-                        title="编辑"
-                        className="text-blue-600 hover:text-blue-700 p-1.5 rounded-md active:bg-blue-50"
-                        aria-label={`编辑 ${t.name}`}
-                      >
-                        <PencilIcon className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => onDeleteClick && onDeleteClick(t.id)}
-                        title="删除"
-                        className="text-red-600 hover:text-red-700 p-1.5 rounded-md active:bg-red-50"
-                        aria-label={`删除 ${t.name}`}
-                      >
-                        <TrashIcon className="w-5 h-5" />
-                      </button>
+                      <div className="shrink-0 text-right flex flex-col items-end gap-2">
+                        <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>
+                        <button
+                          onClick={() => onEditClick && onEditClick(t)}
+                          title="编辑"
+                          className="text-blue-600 hover:text-blue-700 p-1.5 rounded-md active:bg-blue-50"
+                          aria-label={`编辑 ${t.name}`}
+                        >
+                          <PencilIcon className="w-5 h-5" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  </SwipeToDelete>
                 </li>
               ))}
             </ul>

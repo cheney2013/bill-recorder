@@ -7,6 +7,7 @@ export const CATEGORIES: Category[] = [
   Category.Entertainment,
   Category.Home,
   Category.Medical,
+  Category.Education,
   Category.Transfer,
   Category.Other,
 ];
@@ -18,6 +19,7 @@ export const CATEGORY_COLORS: { [key in Category]: string } = {
   [Category.Entertainment]: '#C084FC', // Purple 400
   [Category.Home]: '#FBBF24',      // Amber 400
   [Category.Medical]: '#34D399',    // Emerald 400
+  [Category.Education]: '#8B5CF6',  // Violet 500
   [Category.Transfer]: '#2DD4BF',  // Teal 400
   [Category.Other]: '#9CA3AF',     // Gray 400
 };

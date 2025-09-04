@@ -71,7 +71,7 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'amount' ? parseFloat(value) || 0 : value,
+      [name]: name === 'amount' ? Math.abs(parseFloat(value) || 0) : value,
     }));
   };
   

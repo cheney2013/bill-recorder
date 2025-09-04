@@ -155,7 +155,7 @@ const App: React.FC = () => {
       .map((it: any) => {
         try {
           const name = String(it.name || '').trim();
-          const amount = Number(it.amount);
+          const amount = Math.abs(Number(it.amount));
           const date = String(it.date || '').slice(0, 16); // YYYY-MM-DDTHH:mm
           const category = it.category as any;
           const location = it.location ? String(it.location) : undefined;
@@ -250,14 +250,13 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800">
-      <header className="bg-white shadow-sm sticky top-0 z-10">
+      <header className="bg-white shadow-sm fixed top-0 left-0 right-0 z-20">
         <div className="container mx-auto px-4 py-4 flex items-center gap-3">
             <LogoIcon className="h-8 w-8 text-blue-600"/>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">智能账单分析</h1>
         </div>
       </header>
-
-  <main className="container mx-auto p-4 md:p-8 pb-28 lg:pb-8" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 7rem)' }}>
+  <main className="container mx-auto p-4 md:p-8 pt-24 pb-28 lg:pb-8" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 7rem)' }}>
         {renderContent()}
       </main>
       

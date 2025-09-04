@@ -5,6 +5,7 @@ export enum Category {
   Entertainment = '娱乐',
   Home = '居家',
   Medical = '医疗',
+  Education = '教育',
   Transfer = '转账',
   Other = '其他',
 }
