@@ -12,16 +12,17 @@ interface TransactionListProps {
   onDeleteClick: (transactionId: string) => void;
 }
 
-const CategoryBadge: React.FC<{ category: Transaction['category'] }> = ({ category }) => (
-    <span
-        className="px-2 py-1 text-xs font-semibold leading-tight rounded-full"
-        style={{ 
-            backgroundColor: `${CATEGORY_COLORS[category]}33`, // Add alpha for background
-            color: CATEGORY_COLORS[category]
-        }}
-    >
-        {category}
-    </span>
+export const CategoryBadge: React.FC<{ category: Transaction['category'] }> = ({ category }) => (
+  <span
+    className="px-2 py-1 text-xs font-semibold leading-tight rounded-full whitespace-nowrap max-w-[8rem] truncate inline-flex"
+    style={{ 
+      backgroundColor: `${CATEGORY_COLORS[category]}33`, // Add alpha for background
+      color: CATEGORY_COLORS[category]
+    }}
+    title={category}
+  >
+    {category}
+  </span>
 );
 
 
@@ -97,7 +98,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="font-medium text-gray-900 truncate" title={t.name}>{t.name}</p>
+                <p className="font-medium text-gray-900 truncate max-w-[12rem]" title={t.name}>{t.name}</p>
                 <CategoryBadge category={t.category} />
               </div>
               {t.location && (
@@ -168,16 +169,16 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
       </div>
 
       {/* Desktop/tablet table */}
-      <div className="hidden md:block overflow-x-auto">
+  <div className="hidden md:block overflow-x-auto">
         {transactions.length > 0 ? (
-          <table className="w-full text-sm text-left text-gray-500">
+      <table className="w-full text-sm text-left text-gray-500 table-fixed">
             <thead className="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-10">
               <tr>
-                <th scope="col" className="px-6 py-3">名称</th>
-                <th scope="col" className="px-6 py-3">分类</th>
-                <th scope="col" className="px-6 py-3">日期</th>
-                <th scope="col" className="px-6 py-3 text-right">金额</th>
-                <th scope="col" className="px-6 py-3 text-center">操作</th>
+        <th scope="col" className="px-6 py-3 w-[45%]">名称</th>
+        <th scope="col" className="px-6 py-3 w-28">分类</th>
+        <th scope="col" className="px-6 py-3 w-44">日期</th>
+        <th scope="col" className="px-6 py-3 text-right w-32">金额</th>
+        <th scope="col" className="px-6 py-3 text-center w-28">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -192,12 +193,14 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                       className="bg-white border-b group transition-colors hover:bg-gray-50"
                     >
                       <td
-                        className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap cursor-pointer"
+                        className="px-6 py-4 font-medium text-gray-900 cursor-pointer align-top"
                         onClick={() => onRecordClick(t.name)}
                         title="点击查看此项目的所有记录"
                       >
-                        {t.name}
-                        {t.location && <div className="text-xs text-gray-500">{t.location}</div>}
+                        <div className="min-w-0 max-w-full">
+                          <div className="truncate" title={t.name}>{t.name}</div>
+                          {t.location && <div className="text-xs text-gray-500 truncate" title={t.location}>{t.location}</div>}
+                        </div>
                       </td>
                       <td className="px-6 py-4 cursor-pointer" onClick={() => onRecordClick(t.name)}><CategoryBadge category={t.category} /></td>
                       <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => onRecordClick(t.name)}>{t.date.replace('T', ' ')}</td>
