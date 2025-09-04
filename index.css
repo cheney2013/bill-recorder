@@ -1,0 +1,20 @@
+/* Mobile safe-area and UX improvements */
+:root {
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/***** Optional utility class if needed *****/
+.safe-bottom {
+  padding-bottom: var(--safe-area-inset-bottom);
+}
+
+/* Improve tap experience on mobile */
+body {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Enable smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
