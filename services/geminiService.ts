@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { NewTransaction, Category } from '../types';
 import { CATEGORIES } from '../constants';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+const ai = new GoogleGenAI({ apiKey: 'AIzaSyCduRwH0D0DeVG2hnBqz0U-q0ebaBVPqLc' });
 
 const model = 'gemini-2.5-flash';
 
