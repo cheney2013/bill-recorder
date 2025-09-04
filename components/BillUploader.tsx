@@ -3,9 +3,10 @@ import { NewTransaction } from '../types';
 import { analyzeBillImage } from '../services/geminiService';
 import { fileToBase64 } from '../utils/helpers';
 import { UploadIcon, SpinnerIcon, AlertIcon, XCircleIcon, DocumentIcon } from './icons';
+import { Toast } from './Toast';
 
 interface BillUploaderProps {
-  onAddTransactions: (transactions: NewTransaction[]) => void;
+  onAddTransactions: (transactions: NewTransaction[]) => number;
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   error: string | null;
@@ -21,6 +22,7 @@ interface Preview {
 export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, isLoading, setIsLoading, error, setError }) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<Preview[]>([]);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const addFiles = (newFiles: File[]) => {
@@ -97,7 +99,10 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
     });
     
     if (successfulTransactions.length > 0) {
-      onAddTransactions(successfulTransactions);
+      const added = onAddTransactions(successfulTransactions);
+      if (added > 0) {
+        setToastMsg(`已添加 ${added} 条记录`);
+      }
     }
     
     if (errors.length > 0) {
@@ -106,7 +111,7 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
     
     setSelectedFiles([]);
     setPreviews([]);
-    setIsLoading(false);
+  setIsLoading(false);
   };
   
   const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -124,7 +129,7 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
   };
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-md">
+  <div className="bg-white p-6 rounded-xl shadow-md">
       <h2 className="text-xl font-semibold text-gray-800 mb-4">上传账单</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div 
@@ -204,6 +209,10 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
           )}
         </button>
       </form>
+
+      {toastMsg && (
+        <Toast message={toastMsg} onClose={() => setToastMsg(null)} />)
+      }
     </div>
   );
 };

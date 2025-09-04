@@ -90,3 +90,9 @@ export const ChevronRightIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props)
     <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
   </svg>
 );
+
+export const BarsArrowDownIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h10M3 9h7m-7 4.5h4M16.5 8.25v9m0 0 3.75-3.75M16.5 17.25l-3.75-3.75" />
+  </svg>
+);

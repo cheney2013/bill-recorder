@@ -2,14 +2,15 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { BillUploader } from './components/BillUploader';
 import { TransactionList } from './components/TransactionList';
 import { CategoryChart } from './components/CategoryChart';
-import { Transaction, NewTransaction } from './types';
+import { Transaction, NewTransaction, DeletedItem } from './types';
 import { LogoIcon } from './components/icons';
 import { RecordDetailModal } from './components/RecordDetailModal';
 import { TransactionFormModal } from './components/TransactionFormModal';
 import { BottomNavBar } from './components/BottomNavBar';
 import { SettingsPanel } from './components/SettingsPanel';
+import { TrashView } from './components/TrashView';
 
-type Tab = 'upload' | 'chart' | 'list' | 'settings';
+type Tab = 'upload' | 'chart' | 'list' | 'settings' | 'trash';
 
 const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
@@ -33,6 +34,19 @@ const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [activeTab, setActiveTab] = useState<Tab>('list');
 
+  const [trash, setTrash] = useState<DeletedItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('trash');
+      const arr: DeletedItem[] = saved ? JSON.parse(saved) : [];
+      const now = Date.now();
+      return arr
+        .filter(it => now - new Date(it.deletedAt).getTime() < 3 * 24 * 60 * 60 * 1000)
+        .sort((a,b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
+    } catch {
+      return [];
+    }
+  });
+
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 1024);
@@ -48,6 +62,21 @@ const App: React.FC = () => {
       console.error("Could not save transactions to localStorage", error);
     }
   }, [transactions]);
+
+  useEffect(() => {
+    try {
+      const now = Date.now();
+      const pruned = trash.filter(it => now - new Date(it.deletedAt).getTime() < 3 * 24 * 60 * 60 * 1000);
+      if (pruned.length !== trash.length) {
+        setTrash(pruned);
+        localStorage.setItem('trash', JSON.stringify(pruned));
+      } else {
+        localStorage.setItem('trash', JSON.stringify(trash));
+      }
+    } catch (error) {
+      console.error("Could not save trash to localStorage", error);
+    }
+  }, [trash]);
 
   const handleAddTransactions = (newTransactions: NewTransaction[]) => {
     const existingKeys = new Set(
@@ -68,6 +97,7 @@ const App: React.FC = () => {
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         );
     }
+    return uniqueNewTransactions.length;
   };
   
   const handleShowRecordHistory = (recordName: string) => {
@@ -102,7 +132,20 @@ const App: React.FC = () => {
   };
 
   const handleDeleteTransaction = (transactionId: string) => {
+    const target = transactions.find(t => t.id === transactionId);
     setTransactions(prev => prev.filter(t => t.id !== transactionId));
+    if (target) {
+      setTrash(tr => [{ tx: target, deletedAt: new Date().toISOString() }, ...tr]);
+    }
+  };
+
+  const handleRestoreTransaction = (tx: Transaction) => {
+    setTransactions(prev => {
+      const exists = prev.some(t => t.name === tx.name && t.date === tx.date && t.amount === tx.amount);
+      const list = exists ? prev : [{ ...tx }, ...prev];
+      return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    });
+    setTrash(prev => prev.filter(it => it.tx.id !== tx.id));
   };
 
   const handleImportTransactions = (items: any[]) => {
@@ -153,11 +196,34 @@ const App: React.FC = () => {
         case 'upload':
           return <BillUploader onAddTransactions={handleAddTransactions} isLoading={isLoading} setIsLoading={setIsLoading} error={error} setError={setError} />;
         case 'chart':
-          return <CategoryChart transactions={transactions} currentMonth={currentMonth} setCurrentMonth={setCurrentMonth} />;
+          return (
+            <CategoryChart
+              transactions={transactions}
+              currentMonth={currentMonth}
+              setCurrentMonth={setCurrentMonth}
+              onEditClick={(t) => handleOpenTransactionModal(t)}
+              onDeleteClick={handleDeleteTransaction}
+            />
+          );
         case 'list':
           return <TransactionList transactions={transactions} onRecordClick={handleShowRecordHistory} onAddClick={() => handleOpenTransactionModal()} onEditClick={(t) => handleOpenTransactionModal(t)} onDeleteClick={handleDeleteTransaction} />;
         case 'settings':
-          return <SettingsPanel transactions={transactions} onImport={handleImportTransactions} onClearAll={handleClearAll} />;
+          return (
+            <SettingsPanel
+              transactions={transactions}
+              onImport={handleImportTransactions}
+              onClearAll={handleClearAll}
+              onOpenTrash={() => setActiveTab('trash')}
+            />
+          );
+        case 'trash':
+          return (
+            <TrashView
+              items={trash}
+              onBack={() => setActiveTab('settings')}
+              onRestore={handleRestoreTransaction}
+            />
+          );
         default:
           return null;
       }
@@ -167,7 +233,13 @@ const App: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 flex flex-col gap-8">
           <BillUploader onAddTransactions={handleAddTransactions} isLoading={isLoading} setIsLoading={setIsLoading} error={error} setError={setError} />
-          <CategoryChart transactions={transactions} currentMonth={currentMonth} setCurrentMonth={setCurrentMonth} />
+          <CategoryChart
+            transactions={transactions}
+            currentMonth={currentMonth}
+            setCurrentMonth={setCurrentMonth}
+            onEditClick={(t) => handleOpenTransactionModal(t)}
+            onDeleteClick={handleDeleteTransaction}
+          />
         </div>
         <div className="lg:col-span-2">
           <TransactionList transactions={transactions} onRecordClick={handleShowRecordHistory} onAddClick={() => handleOpenTransactionModal()} onEditClick={(t) => handleOpenTransactionModal(t)} onDeleteClick={handleDeleteTransaction} />

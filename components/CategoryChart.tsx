@@ -1,14 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { Transaction } from '../types';
 import { CATEGORY_COLORS } from '../constants';
-import { ChevronLeftIcon, ChevronRightIcon } from './icons';
+import { ChevronLeftIcon, ChevronRightIcon, PencilIcon, TrashIcon, BarsArrowDownIcon } from './icons';
 import { CategoryBadge } from './TransactionList';
 
 interface CategoryChartProps {
   transactions: Transaction[];
   currentMonth: string;
   setCurrentMonth: (month: string) => void;
+  onEditClick?: (transaction: Transaction) => void;
+  onDeleteClick?: (transactionId: string) => void;
 }
 
 interface ChartData {
@@ -31,7 +33,7 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, outerRadius, percent, name }:
   );
 };
 
-export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, currentMonth, setCurrentMonth }) => {
+export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, currentMonth, setCurrentMonth, onEditClick, onDeleteClick }) => {
 
   const monthOptions = useMemo(() => {
     const months = new Set<string>();
@@ -60,11 +62,14 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
   
   const formattedMonth = new Date(currentMonth + '-01T00:00:00').toLocaleDateString('zh-CN', { month: 'long', year: 'numeric' });
 
+  const [sortByAmount, setSortByAmount] = useState(false);
   const monthlyTransactions = useMemo(() => {
-    return transactions
-      .filter(t => t.date.startsWith(currentMonth))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, currentMonth]);
+    const list = transactions.filter(t => t.date.startsWith(currentMonth));
+    if (sortByAmount) {
+      return list.sort((a, b) => b.amount - a.amount);
+    }
+    return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [transactions, currentMonth, sortByAmount]);
 
   const currentIndex = useMemo(() => monthOptions.indexOf(currentMonth), [monthOptions, currentMonth]);
   const canPrev = currentIndex !== -1 && currentIndex < monthOptions.length - 1;
@@ -151,7 +156,21 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
         <div className="mt-6">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-base font-semibold text-gray-800">{formattedMonth} 账单</h3>
-            <span className="text-sm text-gray-500">{monthlyTransactions.length} 条</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSortByAmount(s => !s)}
+                className={`p-2 rounded-md border text-gray-600 transition-all ${
+                  sortByAmount
+                    ? 'border-blue-500 bg-blue-100 text-blue-700 shadow-inner translate-y-[1px]'
+                    : 'border-gray-200 hover:bg-gray-50'
+                }`}
+                title={sortByAmount ? '按金额降序（激活）' : '正常排序（按时间）'}
+                aria-pressed={sortByAmount}
+              >
+                <BarsArrowDownIcon className="w-5 h-5" />
+              </button>
+              <span className="text-sm text-gray-500">{monthlyTransactions.length} 条</span>
+            </div>
           </div>
           {monthlyTransactions.length > 0 ? (
             <ul className="divide-y divide-gray-100">
@@ -167,8 +186,26 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
                     )}
                     <p className="text-xs text-gray-500 mt-0.5">{t.date.replace('T', ' ')}</p>
                   </div>
-                  <div className="shrink-0 text-right">
+                  <div className="shrink-0 text-right flex flex-col items-end gap-2">
                     <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => onEditClick && onEditClick(t)}
+                        title="编辑"
+                        className="text-blue-600 hover:text-blue-700 p-1.5 rounded-md active:bg-blue-50"
+                        aria-label={`编辑 ${t.name}`}
+                      >
+                        <PencilIcon className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteClick && onDeleteClick(t.id)}
+                        title="删除"
+                        className="text-red-600 hover:text-red-700 p-1.5 rounded-md active:bg-red-50"
+                        aria-label={`删除 ${t.name}`}
+                      >
+                        <TrashIcon className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                 </li>
               ))}

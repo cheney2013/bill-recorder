@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Transaction, Category } from '../types';
 import { CATEGORY_COLORS } from '../constants';
 import { PlusIcon, PencilIcon, TrashIcon } from './icons';
@@ -39,10 +39,29 @@ const formatMonthLabel = (ym: string) => {
 };
 
 export const TransactionList: React.FC<TransactionListProps> = ({ transactions, onRecordClick, onAddClick, onEditClick, onDeleteClick }) => {
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!q) return transactions;
+    return transactions.filter(t => {
+      const name = (t.name || '').toLowerCase();
+      const loc = (t.location || '').toLowerCase();
+      const cat = String(t.category || '').toLowerCase();
+      const date = (t.date || '').toLowerCase();
+      const amount = String(t.amount || '');
+      return (
+        name.includes(q) ||
+        loc.includes(q) ||
+        cat.includes(q) ||
+        date.includes(q) ||
+        amount.includes(q)
+      );
+    });
+  }, [transactions, q]);
   const items = useMemo<FlatItem[]>(() => {
     // Group by YYYY-MM, keep original order (assumed desc by date)
     const groups = new Map<string, Transaction[]>();
-    for (const t of transactions) {
+    for (const t of filtered) {
       const ym = (t.date || '').slice(0, 7);
       if (!groups.has(ym)) groups.set(ym, []);
       groups.get(ym)!.push(t);
@@ -57,18 +76,18 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
       }
     }
     return flat;
-  }, [transactions]);
+  }, [filtered]);
 
   const { monthOrder, monthGroups } = useMemo(() => {
     const groups = new Map<string, Transaction[]>();
-    for (const t of transactions) {
+    for (const t of filtered) {
       const ym = (t.date || '').slice(0, 7);
       if (!groups.has(ym)) groups.set(ym, []);
       groups.get(ym)!.push(t);
     }
     const months = Array.from(groups.keys()).sort((a, b) => (a < b ? 1 : -1));
     return { monthOrder: months, monthGroups: groups };
-  }, [transactions]);
+  }, [filtered]);
 
   const getMobileItemSize = (index: number) => {
     const it = items[index];
@@ -76,6 +95,13 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
     // Card height tuned to avoid overlap in most cases
     return 100;
   };
+
+  const listRef = useRef<any>(null);
+
+  useEffect(() => {
+    // Reset cached measurements when items change to prevent stale rows/headers
+    listRef.current?.resetAfterIndex?.(0, true);
+  }, [items]);
 
   const RowMobile = ({ index, style }: ListChildComponentProps) => {
     const it = items[index];
@@ -136,24 +162,34 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
     <div className="bg-white p-4 md:p-6 rounded-xl shadow-md h-full">
       <div className="flex items-center justify-between gap-3 mb-3 md:mb-4">
         <h2 className="text-lg md:text-xl font-semibold text-gray-800">交易全记录</h2>
-        <button
+        <div className="flex items-center gap-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="搜索名称/地点/分类/日期/金额"
+            className="block w-40 sm:w-56 md:w-72 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+          />
+          <button
           onClick={onAddClick}
           className="shrink-0 bg-blue-600 text-white font-semibold py-2 px-3 md:px-4 rounded-lg hover:bg-blue-700 disabled:bg-blue-300 flex items-center gap-2 transition-colors"
         >
           <PlusIcon className="w-5 h-5" />
           <span className="hidden sm:inline">新增记录</span>
           <span className="sm:hidden">新增</span>
-        </button>
+          </button>
+        </div>
       </div>
 
       {/* Mobile card list with grouping + virtualization */}
-      <div className="md:hidden">
+  <div className="md:hidden">
         {items.length > 0 ? (
           <div>
             <List
+              ref={listRef}
               height={Math.max(420, Math.round(window.innerHeight - 220))}
               itemCount={items.length}
               itemSize={getMobileItemSize}
+              itemKey={(index) => items[index].key}
               width={'100%'}
               className="overflow-auto"
             >
@@ -170,7 +206,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
       {/* Desktop/tablet table */}
   <div className="hidden md:block overflow-x-auto">
-        {transactions.length > 0 ? (
+  {filtered.length > 0 ? (
       <table className="w-full text-sm text-left text-gray-500 table-fixed">
             <thead className="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-10">
               <tr>
@@ -183,6 +219,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
             </thead>
             <tbody>
               {monthOrder.map((ym) => (
+                monthGroups.get(ym) && monthGroups.get(ym)!.length > 0 ? (
                 <React.Fragment key={`grp-${ym}`}>
                   <tr className="bg-gray-50">
                     <td colSpan={5} className="px-6 py-3 text-sm md:text-base font-semibold text-gray-700 text-center">{formatMonthLabel(ym)}</td>
@@ -220,13 +257,14 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     </tr>
                   ))}
                 </React.Fragment>
+                ) : null
               ))}
             </tbody>
           </table>
-        ) : (
+    ) : (
           <div className="text-center py-12 text-gray-500">
-            <p className="font-semibold">暂无记录</p>
-            <p className="mt-1 text-sm">上传账单或手动新增一条记录。</p>
+      <p className="font-semibold">未找到匹配的记录</p>
+      <p className="mt-1 text-sm">换个关键词试试，或清空搜索。</p>
           </div>
         )}
       </div>

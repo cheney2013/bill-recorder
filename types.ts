@@ -19,3 +19,8 @@ export interface Transaction {
 }
 
 export type NewTransaction = Omit<Transaction, 'id'>;
+
+export interface DeletedItem {
+  tx: Transaction;
+  deletedAt: string; // ISO timestamp
+}

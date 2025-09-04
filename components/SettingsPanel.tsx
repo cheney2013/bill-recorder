@@ -5,9 +5,10 @@ interface SettingsPanelProps {
   transactions: Transaction[];
   onImport: (items: any[]) => void;
   onClearAll: () => void;
+  onOpenTrash?: () => void;
 }
 
-export const SettingsPanel: React.FC<SettingsPanelProps> = ({ transactions, onImport, onClearAll }) => {
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({ transactions, onImport, onClearAll, onOpenTrash }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +86,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ transactions, onIm
           <p className="text-sm text-gray-500 mb-3">从 JSON 文件导入记录，自动去重。</p>
           <input type="file" accept="application/json" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
           <button onClick={handleImportClick} className="w-full bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-900">导入 JSON</button>
+        </div>
+        <div className="p-4 border border-gray-200 rounded-lg">
+          <h3 className="font-medium text-gray-900 mb-2">回收站</h3>
+          <p className="text-sm text-gray-500 mb-3">查看最近删除的记录（保留3天，可还原）。</p>
+          <button onClick={onOpenTrash} className="w-full bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700">打开回收站</button>
         </div>
       </div>
 
