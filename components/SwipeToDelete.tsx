@@ -13,6 +13,7 @@ export const SwipeToDelete: React.FC<SwipeToDeleteProps> = ({ onDelete, children
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef<number | null>(null);
+  const startYRef = useRef<number | null>(null);
   const baseXRef = useRef<number>(0); // starting offset (usually 0)
   const [dx, setDx] = useState(0); // current translateX, clamped [-width, 0]
   const dxRef = useRef(0);
@@ -22,6 +23,7 @@ export const SwipeToDelete: React.FC<SwipeToDeleteProps> = ({ onDelete, children
   const movedRef = useRef(false);
   const activePointerIdRef = useRef<number | null>(null);
   const commitTimerRef = useRef<number | null>(null);
+  const orientationRef = useRef<null | 'h' | 'v'>(null);
 
   const snapTo = (target: number) => {
     setAnim(true);
@@ -36,27 +38,53 @@ export const SwipeToDelete: React.FC<SwipeToDeleteProps> = ({ onDelete, children
     try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
     activePointerIdRef.current = e.pointerId;
     startXRef.current = e.clientX;
+  startYRef.current = e.clientY;
     baseXRef.current = dxRef.current;
     widthRef.current = containerRef.current?.getBoundingClientRect().width || 1;
     setAnim(false);
     setCommitting(false);
   movedRef.current = false;
+  orientationRef.current = null;
+  // default allow vertical scroll until we decide it's a horizontal swipe
+  if (containerRef.current) containerRef.current.style.touchAction = 'pan-y';
   }, [committing]);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
     if (startXRef.current == null) return;
     if (activePointerIdRef.current !== e.pointerId) return;
-    const delta = e.clientX - startXRef.current;
+    const deltaX = e.clientX - (startXRef.current || 0);
+    const deltaY = e.clientY - (startYRef.current || 0);
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+    // Decide gesture orientation lazily
+    if (orientationRef.current == null) {
+      if (absX > 8 && absX > absY + 2) {
+        orientationRef.current = 'h';
+        // Lock scrolling while horizontally swiping
+        if (containerRef.current) containerRef.current.style.touchAction = 'none';
+      } else if (absY > 8 && absY > absX + 2) {
+        orientationRef.current = 'v';
+        // Let vertical scroll proceed: release capture and stop handling
+        try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+        activePointerIdRef.current = null;
+        startXRef.current = null;
+        startYRef.current = null;
+        return;
+      }
+    }
+    if (orientationRef.current !== 'h') {
+      return; // ignore updates unless confirmed horizontal
+    }
     // Allow up to full width to support destructive commit animation start
-    let next = baseXRef.current + delta;
+    let next = baseXRef.current + deltaX;
     const min = -widthRef.current;
     if (next > 0) next = 0;
     if (next < min) next = min;
     // Prevent scrolling and tooltips while swiping
-    if (Math.abs(delta) > 4) {
+    if (absX > 4) {
       e.preventDefault();
-      if (Math.abs(delta) > 6) movedRef.current = true;
+      if (absX > 6) movedRef.current = true;
     }
     setDx(next);
     dxRef.current = next;
@@ -68,11 +96,16 @@ export const SwipeToDelete: React.FC<SwipeToDeleteProps> = ({ onDelete, children
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
     const start = startXRef.current;
     startXRef.current = null;
+  startYRef.current = null;
     activePointerIdRef.current = null;
+  // restore scroll behavior
+  if (containerRef.current) containerRef.current.style.touchAction = 'pan-y';
     if (start == null) return;
-    const delta = e.clientX - start;
-    const revealed = Math.abs(baseXRef.current + delta);
+  const deltaX = e.clientX - start;
+  const revealed = Math.abs(baseXRef.current + deltaX);
     const threshold = widthRef.current * 0.5;
+  const wasHorizontal = orientationRef.current === 'h';
+  orientationRef.current = null;
     if (revealed >= threshold) {
       // Commit delete without height collapse: brief polish then remove
       setCommitting(true);
@@ -103,6 +136,9 @@ export const SwipeToDelete: React.FC<SwipeToDeleteProps> = ({ onDelete, children
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
     activePointerIdRef.current = null;
     startXRef.current = null;
+  startYRef.current = null;
+  orientationRef.current = null;
+  if (containerRef.current) containerRef.current.style.touchAction = 'pan-y';
     if (!committing) {
       setCommitting(false);
       snapTo(0);
@@ -122,6 +158,9 @@ export const SwipeToDelete: React.FC<SwipeToDeleteProps> = ({ onDelete, children
     if (activePointerIdRef.current !== e.pointerId) return;
     activePointerIdRef.current = null;
     startXRef.current = null;
+  startYRef.current = null;
+  orientationRef.current = null;
+  if (containerRef.current) containerRef.current.style.touchAction = 'pan-y';
     if (!committing) {
       setCommitting(false);
       snapTo(0);

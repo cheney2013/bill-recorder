@@ -36,6 +36,8 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
   const fileInputRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
   const mobileBulkBarRef = useRef<HTMLDivElement>(null);
+  const aboveContentRef = useRef<HTMLDivElement>(null); // wraps content above the lastAdded section
+  const aboveListRef = useRef<HTMLDivElement>(null); // wraps header + desktop bulk bar above the scroll list
   const [listMaxPx, setListMaxPx] = useState<number | undefined>();
   const allVisibleIds = React.useMemo(() => lastAdded.map(t => t.id), [lastAdded]);
   const toggleAll = () => {
@@ -142,6 +144,16 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
       if (addedTxs.length > 0) {
         setToastMsg(`已添加 ${addedTxs.length} 条记录`);
         setLastAdded(addedTxs);
+        // Reset scroll position and recompute height on next frame
+        setTimeout(() => {
+          try {
+            listContainerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+          } catch {}
+          try {
+            // Force a fresh measure in case layout shifted
+            (recomputeListMax as any)?.();
+          } catch {}
+        }, 0);
       }
     }
     
@@ -207,21 +219,32 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
   }, [selectMode]);
 
   useEffect(() => {
-    // Recompute when list appears, window resizes, visual viewport changes, selection toolbar shows/hides
+    // Recompute when list appears, window resizes, visual viewport/safe-area changes, select mode toggles
     const onResize = () => recomputeListMax();
+    const onOrientation = () => recomputeListMax();
     recomputeListMax();
+    // Observe dynamic height changes above
+    const ro = 'ResizeObserver' in window ? new ResizeObserver(() => recomputeListMax()) : null;
+    if (ro) {
+      if (aboveContentRef.current) ro.observe(aboveContentRef.current);
+      if (aboveListRef.current) ro.observe(aboveListRef.current);
+    }
     window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onOrientation);
     window.visualViewport?.addEventListener('resize', onResize);
     return () => {
+      ro?.disconnect();
       window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onOrientation);
       window.visualViewport?.removeEventListener('resize', onResize);
     };
-  }, [recomputeListMax, lastAdded.length]);
+  }, [recomputeListMax, lastAdded.length, selectMode]);
 
   return (
   <div className="md:bg-white md:p-6 p-0 md:rounded-xl md:shadow-md">
-      <h2 className="text-xl font-semibold text-gray-800 mb-4">上传账单</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <div ref={aboveContentRef}>
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">上传账单</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
         <div 
           className={`border-2 border-dashed border-gray-300 rounded-lg p-4 text-center transition-colors ${!isLoading ? 'cursor-pointer hover:border-blue-500' : ''}`}
           onClick={() => !isLoading && fileInputRef.current?.click()}
@@ -298,54 +321,57 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
             `识别并添加 ${selectedFiles.length > 0 ? `${selectedFiles.length}个` : ''}文件`
           )}
         </button>
-      </form>
+        </form>
+      </div>
 
       {lastAdded.length > 0 && (
         <div className="mt-4">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-base font-semibold text-gray-800">本次新增</h3>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSelectMode(s => { if (s) setSelectedIds(new Set()); return !s; })}
-                className={`p-2 rounded-md border text-gray-600 transition-all ${
-                  selectMode
-                    ? 'border-blue-500 bg-blue-100 text-blue-700 shadow-inner translate-y-[1px]'
-                    : 'border-gray-200 hover:bg-gray-50'
-                }`}
-                title={selectMode ? '取消多选' : '多选'}
-                aria-pressed={selectMode}
-                aria-label={selectMode ? '取消多选' : '多选'}
-              >
-                <ListBulletIcon className="w-5 h-5" />
-              </button>
-              <span className="text-sm text-gray-500">{lastAdded.length} 条</span>
-            </div>
-          </div>
-          {/* 桌面端批量条（移动端隐藏） */}
-          {selectMode && (
-            <div className="mb-2 hidden md:flex items-center justify-between gap-2">
-              <div className="flex items-center gap-3 text-sm text-gray-600">
-                <label className="inline-flex items-center gap-1 cursor-pointer select-none">
-                  <input type="checkbox" checked={selectedIds.size === allVisibleIds.length && allVisibleIds.length > 0} onChange={toggleAll} />
-                  <span>全选</span>
-                </label>
-                <span>已选 {selectedIds.size} 项</span>
-              </div>
+          <div ref={aboveListRef}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-base font-semibold text-gray-800">本次新增</h3>
               <div className="flex items-center gap-2">
                 <button
-                  disabled={selectedIds.size === 0 || !onBulkChangeInline}
-                  onClick={() => setShowBulkModal(true)}
-                  className="px-3 py-1.5 rounded-md bg-amber-500 disabled:bg-amber-300 text-white text-sm"
-                >批量改分类</button>
-                <button
-                  disabled={selectedIds.size === 0}
-                  onClick={doBulkDeleteInline}
-                  className="px-3 py-1.5 rounded-md bg-red-600 disabled:bg-red-300 text-white text-sm"
-                >批量删除</button>
-                <button onClick={exitSelectMode} className="px-3 py-1.5 rounded-md border border-gray-300 text-sm">退出</button>
+                  onClick={() => setSelectMode(s => { if (s) setSelectedIds(new Set()); return !s; })}
+                  className={`p-2 rounded-md border text-gray-600 transition-all ${
+                    selectMode
+                      ? 'border-blue-500 bg-blue-100 text-blue-700 shadow-inner translate-y-[1px]'
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}
+                  title={selectMode ? '取消多选' : '多选'}
+                  aria-pressed={selectMode}
+                  aria-label={selectMode ? '取消多选' : '多选'}
+                >
+                  <ListBulletIcon className="w-5 h-5" />
+                </button>
+                <span className="text-sm text-gray-500">{lastAdded.length} 条</span>
               </div>
             </div>
-          )}
+            {/* 桌面端批量条（移动端隐藏） */}
+            {selectMode && (
+              <div className="mb-2 hidden md:flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3 text-sm text-gray-600">
+                  <label className="inline-flex items-center gap-1 cursor-pointer select-none">
+                    <input type="checkbox" checked={selectedIds.size === allVisibleIds.length && allVisibleIds.length > 0} onChange={toggleAll} />
+                    <span>全选</span>
+                  </label>
+                  <span>已选 {selectedIds.size} 项</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={selectedIds.size === 0 || !onBulkChangeInline}
+                    onClick={() => setShowBulkModal(true)}
+                    className="px-3 py-1.5 rounded-md bg-amber-500 disabled:bg-amber-300 text-white text-sm"
+                  >批量改分类</button>
+                  <button
+                    disabled={selectedIds.size === 0}
+                    onClick={doBulkDeleteInline}
+                    className="px-3 py-1.5 rounded-md bg-red-600 disabled:bg-red-300 text-white text-sm"
+                  >批量删除</button>
+                  <button onClick={exitSelectMode} className="px-3 py-1.5 rounded-md border border-gray-300 text-sm">退出</button>
+                </div>
+              </div>
+            )}
+          </div>
           <div ref={listContainerRef} className="overflow-y-auto" style={listMaxPx ? { maxHeight: `${listMaxPx}px` } : undefined}>
             <ul>
               {lastAdded.map((t) => (

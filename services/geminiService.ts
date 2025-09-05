@@ -110,6 +110,7 @@ const isShoppingCenter = (nameRaw: unknown): boolean => {
   /parco|パルコ/i,
   /ヨドバシ|yodobashi|bic\s*camera|ビックカメラ/i,
   /ドン[・･.]?キホーテ|don\s*quijote|donki/i,
+  /ちいかわ|chiikawa/i
   ];
   return patterns.some((re) => re.test(name));
 };
