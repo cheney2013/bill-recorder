@@ -275,6 +275,7 @@ const App: React.FC = () => {
               setError={setError}
               onEditInline={(t) => handleOpenTransactionModal(t)}
               onDeleteInline={handleDeleteTransaction}
+              onBulkChangeInline={(ids, category) => handleBulkChangeCategory(ids, category)}
             />
           );
         case 'chart':
@@ -322,6 +323,7 @@ const App: React.FC = () => {
             setError={setError}
             onEditInline={(t) => handleOpenTransactionModal(t)}
             onDeleteInline={handleDeleteTransaction}
+            onBulkChangeInline={(ids, category) => handleBulkChangeCategory(ids, category)}
           />
           <CategoryChart
             transactions={transactions}

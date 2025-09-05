@@ -1,8 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { NewTransaction, Transaction } from '../types';
+import { NewTransaction, Transaction, Category } from '../types';
 import { analyzeBillImage } from '../services/geminiService';
 import { fileToBase64 } from '../utils/helpers';
-import { UploadIcon, SpinnerIcon, AlertIcon, XCircleIcon, DocumentIcon, PencilIcon } from './icons';
+import { UploadIcon, SpinnerIcon, AlertIcon, XCircleIcon, DocumentIcon, PencilIcon, ListBulletIcon, TrashIcon } from './icons';
 import { SwipeToDelete } from './SwipeToDelete';
 import { CategoryBadge } from './TransactionList';
 import { Toast } from './Toast';
@@ -15,6 +15,7 @@ interface BillUploaderProps {
   setError: React.Dispatch<React.SetStateAction<string | null>>;
   onEditInline?: (tx: Transaction) => void;
   onDeleteInline?: (id: string) => void;
+  onBulkChangeInline?: (ids: string[], category: Category) => void;
 }
 
 interface Preview {
@@ -23,12 +24,41 @@ interface Preview {
     isImage: boolean;
 }
 
-export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, isLoading, setIsLoading, error, setError, onEditInline, onDeleteInline }) => {
+export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, isLoading, setIsLoading, error, setError, onEditInline, onDeleteInline, onBulkChangeInline }) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<Preview[]>([]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [lastAdded, setLastAdded] = useState<Transaction[]>([]);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkModal, setShowBulkModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const allVisibleIds = React.useMemo(() => lastAdded.map(t => t.id), [lastAdded]);
+  const toggleAll = () => {
+    setSelectedIds(prev => {
+      if (prev.size === allVisibleIds.length) return new Set();
+      return new Set(allVisibleIds);
+    });
+  };
+  const toggleOne = (id: string) => {
+    setSelectedIds(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  };
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); };
+  const doBulkDeleteInline = () => {
+    if (!onDeleteInline || selectedIds.size === 0) return;
+    Array.from(selectedIds).forEach(id => onDeleteInline(id));
+    setLastAdded(prev => prev.filter(t => !selectedIds.has(t.id)));
+    exitSelectMode();
+  };
+  const confirmBulkInline = (cat: Category) => {
+    if (!onBulkChangeInline || selectedIds.size === 0) { setShowBulkModal(false); return; }
+    const ids = Array.from(selectedIds);
+    onBulkChangeInline(ids, cat);
+    // reflect in local lastAdded panel immediately
+    setLastAdded(prev => prev.map(t => ids.includes(t.id) ? { ...t, category: cat } : t));
+    setShowBulkModal(false);
+    exitSelectMode();
+  };
 
   const addFiles = (newFiles: File[]) => {
     const validFiles = newFiles.filter(file => 
@@ -220,8 +250,48 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
         <div className="mt-4">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-base font-semibold text-gray-800">本次新增</h3>
-            <span className="text-sm text-gray-500">{lastAdded.length} 条</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectMode(s => { if (s) setSelectedIds(new Set()); return !s; })}
+                className={`p-2 rounded-md border text-gray-600 transition-all ${
+                  selectMode
+                    ? 'border-blue-500 bg-blue-100 text-blue-700 shadow-inner translate-y-[1px]'
+                    : 'border-gray-200 hover:bg-gray-50'
+                }`}
+                title={selectMode ? '取消多选' : '多选'}
+                aria-pressed={selectMode}
+                aria-label={selectMode ? '取消多选' : '多选'}
+              >
+                <ListBulletIcon className="w-5 h-5" />
+              </button>
+              <span className="text-sm text-gray-500">{lastAdded.length} 条</span>
+            </div>
           </div>
+          {/* 桌面端批量条（移动端隐藏） */}
+          {selectMode && (
+            <div className="mb-2 hidden md:flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3 text-sm text-gray-600">
+                <label className="inline-flex items-center gap-1 cursor-pointer select-none">
+                  <input type="checkbox" checked={selectedIds.size === allVisibleIds.length && allVisibleIds.length > 0} onChange={toggleAll} />
+                  <span>全选</span>
+                </label>
+                <span>已选 {selectedIds.size} 项</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={selectedIds.size === 0 || !onBulkChangeInline}
+                  onClick={() => setShowBulkModal(true)}
+                  className="px-3 py-1.5 rounded-md bg-amber-500 disabled:bg-amber-300 text-white text-sm"
+                >批量改分类</button>
+                <button
+                  disabled={selectedIds.size === 0}
+                  onClick={doBulkDeleteInline}
+                  className="px-3 py-1.5 rounded-md bg-red-600 disabled:bg-red-300 text-white text-sm"
+                >批量删除</button>
+                <button onClick={exitSelectMode} className="px-3 py-1.5 rounded-md border border-gray-300 text-sm">退出</button>
+              </div>
+            </div>
+          )}
           <div className="max-h-[45vh] overflow-y-auto">
             <ul>
               {lastAdded.map((t) => (
@@ -230,7 +300,7 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
                     className="w-full bg-white p-3 md:rounded-lg md:border md:border-gray-200 border-b border-gray-100 rounded-none"
                     onDelete={() => onDeleteInline && onDeleteInline(t.id)}
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start justify-between gap-3" onClick={() => selectMode ? toggleOne(t.id) : undefined} role="button" aria-label={selectMode ? (selectedIds.has(t.id) ? '取消选择' : '选择此项') : undefined}>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-medium text-gray-900 truncate max-w-[12rem]" title={t.name}>{t.name}</p>
@@ -245,15 +315,27 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>
-                        {onEditInline && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onEditInline(t); }}
-                            title="编辑"
-                            className="text-blue-600 hover:text-blue-700 p-1.5 rounded-md active:bg-blue-50"
-                            aria-label={`编辑 ${t.name}`}
-                          >
-                            <PencilIcon className="w-5 h-5" />
-                          </button>
+                        {selectMode ? (
+                          selectedIds.has(t.id) ? (
+                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white">
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            </span>
+                          ) : (
+                            <span className="inline-block w-8 h-8" aria-hidden="true"></span>
+                          )
+                        ) : (
+                          onEditInline && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onEditInline(t); }}
+                              title="编辑"
+                              className="text-blue-600 hover:text-blue-700 p-1.5 rounded-md active:bg-blue-50"
+                              aria-label={`编辑 ${t.name}`}
+                            >
+                              <PencilIcon className="w-5 h-5" />
+                            </button>
+                          )
                         )}
                       </div>
                     </div>
@@ -261,6 +343,74 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
                 </li>
               ))}
             </ul>
+          </div>
+          {/* 移动端底部批量条（悬浮在底部导航上方） */}
+          {selectMode && (
+            <div className="md:hidden fixed left-0 right-0 z-40 pointer-events-none" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 4.1rem)' }}>
+              <div className="bg-white/95 pointer-events-auto">
+                <div className="px-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 10px)' }}>
+                  <div className="text-xs text-gray-600 text-center">已选 {selectedIds.size} 项</div>
+                  <div className="mt-2 grid grid-cols-3 gap-4 items-center">
+                    <button
+                      className="p-2 rounded-full border border-gray-300 justify-self-start"
+                      onClick={toggleAll}
+                      title={selectedIds.size === allVisibleIds.length && allVisibleIds.length > 0 ? '全不选' : '全选'}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-6 h-6">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12M8.25 17.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                      </svg>
+                    </button>
+                    <button
+                      className="p-2 rounded-full border border-gray-300 disabled:opacity-50 justify-self-center"
+                      disabled={selectedIds.size === 0 || !onBulkChangeInline}
+                      onClick={() => setShowBulkModal(true)}
+                      title="批量修改分类"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-6 h-6">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5V6a3 3 0 0 1 3-3h1.5M21 16.5V18a3 3 0 0 1-3 3h-1.5M3 12h18M7.5 3v3m9 15v-3" />
+                      </svg>
+                    </button>
+                    <button
+                      className="p-2 rounded-full border border-gray-300 text-red-600 disabled:opacity-50 justify-self-end"
+                      disabled={selectedIds.size === 0}
+                      onClick={doBulkDeleteInline}
+                      title="批量删除"
+                    >
+                      <TrashIcon className="w-6 h-6" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showBulkModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowBulkModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-gray-200">
+              <h3 className="text-base font-semibold text-gray-900">批量修改分类</h3>
+              <p className="text-sm text-gray-500 mt-0.5">已选 {selectedIds.size} 项</p>
+            </div>
+            <div className="p-4">
+              <div className="flex flex-wrap gap-2">
+                {(Object.values(Category) as Category[]).map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => confirmBulkInline(cat)}
+                    className="rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    title={`设为 ${cat}`}
+                    aria-label={`设为 ${cat}`}
+                  >
+                    <CategoryBadge category={cat} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-200 flex justify-end">
+              <button onClick={() => setShowBulkModal(false)} className="px-3 py-1.5 rounded-md border border-gray-300 text-sm">取消</button>
+            </div>
           </div>
         </div>
       )}

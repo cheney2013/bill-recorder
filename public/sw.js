@@ -1,5 +1,5 @@
 // Simple service worker with update support and sane caching
-const CACHE_NAME = 'bill-recorder-cache-v10';
+const CACHE_NAME = 'bill-recorder-cache-v11';
 const ASSETS = [
   '/',
   '/index.html',

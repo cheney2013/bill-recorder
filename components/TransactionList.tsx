@@ -460,8 +460,14 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
             <div className="p-4">
               <div className="flex flex-wrap gap-2">
                 {(Object.values(Category) as Category[]).map(cat => (
-                  <button key={cat} onClick={() => confirmBulk(cat)} className="px-3 py-1.5 rounded-full border border-gray-300 hover:bg-gray-50 text-sm">
-                    {cat}
+                  <button
+                    key={cat}
+                    onClick={() => confirmBulk(cat)}
+                    className="rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    title={`设为 ${cat}`}
+                    aria-label={`设为 ${cat}`}
+                  >
+                    <CategoryBadge category={cat} />
                   </button>
                 ))}
               </div>

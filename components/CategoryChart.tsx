@@ -72,6 +72,8 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, currentMonth, sortByAmount]);
 
+  // no multi-select in chart view
+
   const currentIndex = useMemo(() => monthOptions.indexOf(currentMonth), [monthOptions, currentMonth]);
   const canPrev = currentIndex !== -1 && currentIndex < monthOptions.length - 1;
   const canNext = currentIndex !== -1 && currentIndex > 0;
@@ -226,7 +228,7 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold text-gray-800">分类支出</h2>
         </div>
-        <div className="flex items-center gap-2">
+  <div className="flex items-center gap-2">
           <select 
               value={currentMonth} 
               onChange={e => setCurrentMonth(e.target.value)}
@@ -340,6 +342,8 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
             <div className="text-center text-gray-500 py-6">本月暂无记录</div>
           )}
         </div>
+
+  {/* no mobile bulk bar or modal in chart view */}
     </div>
   );
 };
