@@ -276,6 +276,7 @@ const App: React.FC = () => {
               onEditInline={(t) => handleOpenTransactionModal(t)}
               onDeleteInline={handleDeleteTransaction}
               onBulkChangeInline={(ids, category) => handleBulkChangeCategory(ids, category)}
+              transactions={transactions}
             />
           );
         case 'chart':
@@ -324,6 +325,7 @@ const App: React.FC = () => {
             onEditInline={(t) => handleOpenTransactionModal(t)}
             onDeleteInline={handleDeleteTransaction}
             onBulkChangeInline={(ids, category) => handleBulkChangeCategory(ids, category)}
+            transactions={transactions}
           />
           <CategoryChart
             transactions={transactions}

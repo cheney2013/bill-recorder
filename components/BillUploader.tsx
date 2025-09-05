@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { NewTransaction, Transaction, Category } from '../types';
 import { analyzeBillImage } from '../services/geminiService';
 import { fileToBase64 } from '../utils/helpers';
@@ -16,6 +16,7 @@ interface BillUploaderProps {
   onEditInline?: (tx: Transaction) => void;
   onDeleteInline?: (id: string) => void;
   onBulkChangeInline?: (ids: string[], category: Category) => void;
+  transactions?: Transaction[]; // global source to sync inline list after edits/deletes
 }
 
 interface Preview {
@@ -24,7 +25,7 @@ interface Preview {
     isImage: boolean;
 }
 
-export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, isLoading, setIsLoading, error, setError, onEditInline, onDeleteInline, onBulkChangeInline }) => {
+export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, isLoading, setIsLoading, error, setError, onEditInline, onDeleteInline, onBulkChangeInline, transactions }) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<Preview[]>([]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -33,6 +34,9 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkModal, setShowBulkModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const mobileBulkBarRef = useRef<HTMLDivElement>(null);
+  const [listMaxPx, setListMaxPx] = useState<number | undefined>();
   const allVisibleIds = React.useMemo(() => lastAdded.map(t => t.id), [lastAdded]);
   const toggleAll = () => {
     setSelectedIds(prev => {
@@ -164,6 +168,56 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
     event.stopPropagation();
   };
 
+  // Keep lastAdded entries in sync with global transactions after edits or external deletes
+  useEffect(() => {
+    if (!transactions || lastAdded.length === 0) return;
+    const entries: [string, Transaction][] = transactions.map(t => [t.id, t]);
+    const map = new Map<string, Transaction>(entries);
+    setLastAdded(prev => {
+      let changed = false;
+      const next: Transaction[] = [];
+      for (const t of prev) {
+        const u = map.get(t.id);
+        if (!u) { changed = true; continue; }
+        if (u !== t) changed = true;
+        next.push(u);
+      }
+      return changed ? next : prev;
+    });
+  }, [transactions]);
+
+  // Compute dynamic max height for the "本次新增" scroll area so it doesn't overlap the bottom nav or the mobile bulk bar.
+  const recomputeListMax = useCallback(() => {
+    if (!listContainerRef.current) return;
+    const rect = listContainerRef.current.getBoundingClientRect();
+    const viewportH = (window.visualViewport?.height ?? window.innerHeight);
+    // Bottom overlays on mobile: bottom nav (h-16 => 64px) and optional mobile bulk bar when in selectMode
+    const isMobile = window.matchMedia('(max-width: 767.98px)').matches;
+    const BOTTOM_NAV_H = 64; // matches h-16
+    let overlays = 0;
+    if (isMobile) {
+      overlays += BOTTOM_NAV_H;
+      if (selectMode && mobileBulkBarRef.current) {
+        overlays += mobileBulkBarRef.current.getBoundingClientRect().height;
+      }
+    }
+    const margin = 12; // small breathing room
+    const computed = Math.max(120, Math.floor(viewportH - rect.top - overlays - margin));
+    setListMaxPx(computed);
+  }, [selectMode]);
+
+  useEffect(() => {
+    // Recompute when list appears, window resizes, visual viewport changes, selection toolbar shows/hides
+    const onResize = () => recomputeListMax();
+    recomputeListMax();
+    window.addEventListener('resize', onResize);
+    window.visualViewport?.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.visualViewport?.removeEventListener('resize', onResize);
+    };
+  }, [recomputeListMax, lastAdded.length]);
+
   return (
   <div className="md:bg-white md:p-6 p-0 md:rounded-xl md:shadow-md">
       <h2 className="text-xl font-semibold text-gray-800 mb-4">上传账单</h2>
@@ -292,7 +346,7 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
               </div>
             </div>
           )}
-          <div className="max-h-[45vh] overflow-y-auto">
+          <div ref={listContainerRef} className="overflow-y-auto" style={listMaxPx ? { maxHeight: `${listMaxPx}px` } : undefined}>
             <ul>
               {lastAdded.map((t) => (
                 <li key={t.id} className="py-0">
@@ -346,7 +400,7 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
           </div>
           {/* 移动端底部批量条（悬浮在底部导航上方） */}
           {selectMode && (
-            <div className="md:hidden fixed left-0 right-0 z-40 pointer-events-none" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 4.1rem)' }}>
+            <div ref={mobileBulkBarRef} className="md:hidden fixed left-0 right-0 z-40 pointer-events-none" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 4.1rem)' }}>
               <div className="bg-white/95 pointer-events-auto">
                 <div className="px-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 10px)' }}>
                   <div className="text-xs text-gray-600 text-center">已选 {selectedIds.size} 项</div>

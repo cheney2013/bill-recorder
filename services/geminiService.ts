@@ -77,12 +77,13 @@ const isSupermarket = (nameRaw: unknown): boolean => {
   /永旺|aeon(\s*mall)?|イオン|イオンスタイル|イオンフード|イオンフードスタイル|イオンスーパー/i,
   /西友|seiyu/i,
   /イトーヨーカドー|伊藤洋华堂|伊藤洋華堂|ito[-\s]?yokado/i,
-  /ライフ\b|life\s*super/i,
+  /ライフ|life\s*super/i,
   /サミット|summit\s*store/i,
   /マルエツ|maruetsu/i,
   /コープ|生協|coop/i,
   /オーケー|ok\s*store|ＯＫ\s*ストア/i,
   /ビッグエー|big\s*-?\s*a/i,
+  /まいばすけっと|mybasket/i,
   ];
   return patterns.some((re) => re.test(name));
 };
