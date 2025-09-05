@@ -17,9 +17,12 @@ export interface Transaction {
   amount: number;
   date: string; // YYYY-MM-DDTHH:mm
   location?: string;
+  // When this entry was added into the app (ISO string)
+  addedAt: string;
 }
 
-export type NewTransaction = Omit<Transaction, 'id'>;
+// New transactions come without id and addedAt; those will be filled at creation time
+export type NewTransaction = Omit<Transaction, 'id' | 'addedAt'>;
 
 export interface DeletedItem {
   tx: Transaction;

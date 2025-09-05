@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Transaction, Category } from '../types';
 import { CATEGORY_COLORS } from '../constants';
-import { PlusIcon, PencilIcon, TrashIcon } from './icons';
+import { PlusIcon, PencilIcon, TrashIcon, BarsArrowDownIcon } from './icons';
 import { SwipeToDelete } from './SwipeToDelete';
 import { VariableSizeList as List, ListChildComponentProps } from 'react-window';
 
@@ -43,6 +43,7 @@ const formatMonthLabel = (ym: string) => {
 
 export const TransactionList: React.FC<TransactionListProps> = ({ transactions, onRecordClick, onAddClick, onEditClick, onDeleteClick, onBulkChangeCategory, onBulkDelete }) => {
   const [query, setQuery] = useState('');
+  const [sortByAddedTime, setSortByAddedTime] = useState(false);
   const q = query.trim().toLowerCase();
   const filtered = useMemo(() => {
     if (!q) return transactions;
@@ -63,23 +64,35 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
   }, [transactions, q]);
   const items = useMemo<FlatItem[]>(() => {
     // Group by YYYY-MM, keep original order (assumed desc by date)
-    const groups = new Map<string, Transaction[]>();
-    for (const t of filtered) {
-      const ym = (t.date || '').slice(0, 7);
-      if (!groups.has(ym)) groups.set(ym, []);
-      groups.get(ym)!.push(t);
-    }
-    // Sort months desc
-    const sortedMonths = Array.from(groups.keys()).sort((a, b) => (a < b ? 1 : -1));
-    const flat: FlatItem[] = [];
-    for (const ym of sortedMonths) {
-      flat.push({ type: 'header', key: `h-${ym}`, month: ym });
-      for (const t of groups.get(ym)!) {
-        flat.push({ type: 'item', key: t.id, tx: t });
+    if (!sortByAddedTime) {
+      const groups = new Map<string, Transaction[]>();
+      for (const t of filtered) {
+        const ym = (t.date || '').slice(0, 7);
+        if (!groups.has(ym)) groups.set(ym, []);
+        groups.get(ym)!.push(t);
       }
+      // Sort months desc
+      const sortedMonths = Array.from(groups.keys()).sort((a, b) => (a < b ? 1 : -1));
+      const flat: FlatItem[] = [];
+      for (const ym of sortedMonths) {
+        flat.push({ type: 'header', key: `h-${ym}`, month: ym });
+        for (const t of groups.get(ym)!) {
+          flat.push({ type: 'item', key: t.id, tx: t });
+        }
+      }
+      return flat;
     }
+    // Sort by addedAt (desc) without month headers
+    const flat: FlatItem[] = filtered
+      .slice()
+      .sort((a, b) => {
+        const ta = a.addedAt ? new Date(a.addedAt).getTime() : 0;
+        const tb = b.addedAt ? new Date(b.addedAt).getTime() : 0;
+        return tb - ta;
+      })
+      .map(tx => ({ type: 'item', key: tx.id, tx }));
     return flat;
-  }, [filtered]);
+  }, [filtered, sortByAddedTime]);
 
   const { monthOrder, monthGroups } = useMemo(() => {
     const groups = new Map<string, Transaction[]>();
@@ -180,7 +193,14 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
               {t.location && (
                 <p className="text-xs text-gray-500 mt-1 truncate" title={t.location}>{t.location}</p>
               )}
-              <p className="text-xs text-gray-500 mt-1">{t.date.replace('T', ' ')}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {t.date.replace('T', ' ')}
+                {sortByAddedTime && t.addedAt && (
+                  <>
+                    {' '}· 添加于 {new Date(t.addedAt).toLocaleString()}
+                  </>
+                )}
+              </p>
             </div>
             <div className="flex flex-col items-end gap-2">
               <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>
@@ -240,12 +260,21 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
             className={`shrink-0 px-3 py-2 rounded-lg border ${selectMode ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
           >{selectMode ? '取消' : '多选'}</button>
           <button
-          onClick={onAddClick}
-          className="shrink-0 bg-blue-600 text-white font-semibold py-2 px-3 md:px-4 rounded-lg hover:bg-blue-700 disabled:bg-blue-300 flex items-center gap-2 transition-colors"
-        >
-          <PlusIcon className="w-5 h-5" />
-          <span className="hidden sm:inline">新增记录</span>
-          <span className="sm:hidden">新增</span>
+            onClick={() => setSortByAddedTime(v => !v)}
+            className={`shrink-0 p-2 rounded-lg border ${sortByAddedTime ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+            title={sortByAddedTime ? '按添加时间降序（激活）' : '按账单日期分组'}
+            aria-pressed={sortByAddedTime}
+            aria-label={sortByAddedTime ? '切换为按月份分组' : '切换为按添加时间排序'}
+          >
+            <BarsArrowDownIcon className="w-6 h-6" />
+          </button>
+          <button
+            onClick={onAddClick}
+            title="新增记录"
+            aria-label="新增记录"
+            className="shrink-0 p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
+          >
+            <PlusIcon className="w-6 h-6" />
           </button>
         </div>
       </div>
@@ -374,6 +403,9 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                         <div className="min-w-0 max-w-full">
                           <div className="truncate" title={t.name}>{t.name}</div>
                           {t.location && <div className="text-xs text-gray-500 truncate" title={t.location}>{t.location}</div>}
+                          {sortByAddedTime && t.addedAt && (
+                            <div className="text-xs text-gray-400">添加于 {new Date(t.addedAt).toLocaleString()}</div>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 cursor-pointer" onClick={() => onRecordClick(t.name)}><CategoryBadge category={t.category} /></td>

@@ -16,7 +16,22 @@ const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     try {
       const savedTransactions = localStorage.getItem('transactions');
-      return savedTransactions ? JSON.parse(savedTransactions) : [];
+      const parsed: any[] = savedTransactions ? JSON.parse(savedTransactions) : [];
+      const migratedFlag = localStorage.getItem('addedAtMigrated') === '1';
+      let needMigration = false;
+      const nowISO = new Date().toISOString();
+      const list = parsed.map((t) => {
+        if (t.addedAt) return t;
+        needMigration = true;
+        return { ...t, addedAt: nowISO };
+      });
+      if (needMigration && !migratedFlag) {
+        try {
+          localStorage.setItem('transactions', JSON.stringify(list));
+          localStorage.setItem('addedAtMigrated', '1');
+        } catch {}
+      }
+      return list as Transaction[];
     } catch (error) {
       console.error("Could not parse transactions from localStorage", error);
       return [];
@@ -91,7 +106,7 @@ const App: React.FC = () => {
     }
   }, [trash]);
 
-  const handleAddTransactions = (newTransactions: NewTransaction[]) => {
+  const handleAddTransactions = (newTransactions: NewTransaction[]): Transaction[] => {
     const existingKeys = new Set(
         transactions.map(t => `${t.name}|${t.date}|${t.amount}`)
     );
@@ -101,16 +116,19 @@ const App: React.FC = () => {
     );
 
     if (uniqueNewTransactions.length > 0) {
-        const transactionsWithIds: Transaction[] = uniqueNewTransactions.map(t => ({
-            ...t,
-            id: new Date().getTime().toString() + Math.random().toString(36).substr(2, 9),
-        }));
-        setTransactions(prev => 
-            [...transactionsWithIds, ...prev]
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        );
+      const nowISO = new Date().toISOString();
+      const transactionsWithIds: Transaction[] = uniqueNewTransactions.map(t => ({
+        ...t,
+        id: new Date().getTime().toString() + Math.random().toString(36).substr(2, 9),
+        addedAt: nowISO,
+      }));
+      setTransactions(prev => 
+        [...transactionsWithIds, ...prev]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      );
+      return transactionsWithIds;
     }
-    return uniqueNewTransactions.length;
+    return [];
   };
   
   const handleShowRecordHistory = (recordName: string) => {
@@ -138,6 +156,7 @@ const App: React.FC = () => {
       const newTransaction: Transaction = {
         ...transactionData,
         id: new Date().getTime().toString() + Math.random().toString(36).substr(2, 9),
+        addedAt: new Date().toISOString(),
       };
       setTransactions(prev => [newTransaction, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     }
@@ -202,9 +221,11 @@ const App: React.FC = () => {
     const unique = normalized.filter(t => !existingKeys.has(`${t.name}|${t.date}|${t.amount}`));
     if (unique.length === 0) return;
 
+    const nowISO = new Date().toISOString();
     const withIds: Transaction[] = unique.map(t => ({
       ...t,
       id: new Date().getTime().toString() + Math.random().toString(36).slice(2, 9),
+      addedAt: nowISO,
     }));
     setTransactions(prev =>
       [...withIds, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -226,7 +247,17 @@ const App: React.FC = () => {
     if (isMobile) {
       switch (activeTab) {
         case 'upload':
-          return <BillUploader onAddTransactions={handleAddTransactions} isLoading={isLoading} setIsLoading={setIsLoading} error={error} setError={setError} />;
+          return (
+            <BillUploader
+              onAddTransactions={handleAddTransactions}
+              isLoading={isLoading}
+              setIsLoading={setIsLoading}
+              error={error}
+              setError={setError}
+              onEditInline={(t) => handleOpenTransactionModal(t)}
+              onDeleteInline={handleDeleteTransaction}
+            />
+          );
         case 'chart':
           return (
             <CategoryChart
@@ -264,7 +295,15 @@ const App: React.FC = () => {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 flex flex-col gap-8">
-          <BillUploader onAddTransactions={handleAddTransactions} isLoading={isLoading} setIsLoading={setIsLoading} error={error} setError={setError} />
+          <BillUploader
+            onAddTransactions={handleAddTransactions}
+            isLoading={isLoading}
+            setIsLoading={setIsLoading}
+            error={error}
+            setError={setError}
+            onEditInline={(t) => handleOpenTransactionModal(t)}
+            onDeleteInline={handleDeleteTransaction}
+          />
           <CategoryChart
             transactions={transactions}
             currentMonth={currentMonth}

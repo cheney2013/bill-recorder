@@ -1,16 +1,18 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { NewTransaction } from '../types';
+import { NewTransaction, Transaction } from '../types';
 import { analyzeBillImage } from '../services/geminiService';
 import { fileToBase64 } from '../utils/helpers';
 import { UploadIcon, SpinnerIcon, AlertIcon, XCircleIcon, DocumentIcon } from './icons';
 import { Toast } from './Toast';
 
 interface BillUploaderProps {
-  onAddTransactions: (transactions: NewTransaction[]) => number;
+  onAddTransactions: (transactions: NewTransaction[]) => Transaction[];
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   error: string | null;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
+  onEditInline?: (tx: Transaction) => void;
+  onDeleteInline?: (id: string) => void;
 }
 
 interface Preview {
@@ -19,10 +21,11 @@ interface Preview {
     isImage: boolean;
 }
 
-export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, isLoading, setIsLoading, error, setError }) => {
+export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, isLoading, setIsLoading, error, setError, onEditInline, onDeleteInline }) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<Preview[]>([]);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [lastAdded, setLastAdded] = useState<Transaction[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const addFiles = (newFiles: File[]) => {
@@ -99,9 +102,10 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
     });
     
     if (successfulTransactions.length > 0) {
-      const added = onAddTransactions(successfulTransactions);
-      if (added > 0) {
-        setToastMsg(`已添加 ${added} 条记录`);
+      const addedTxs = onAddTransactions(successfulTransactions);
+      if (addedTxs.length > 0) {
+        setToastMsg(`已添加 ${addedTxs.length} 条记录`);
+        setLastAdded(addedTxs);
       }
     }
     
@@ -209,6 +213,41 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
           )}
         </button>
       </form>
+
+      {lastAdded.length > 0 && (
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-base font-semibold text-gray-800">本次新增</h3>
+            <span className="text-sm text-gray-500">{lastAdded.length} 条</span>
+          </div>
+          <ul className="divide-y divide-gray-100">
+            {lastAdded.map((t) => (
+              <li key={t.id} className="py-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-gray-900 truncate" title={t.name}>{t.name}</p>
+                    {t.location && (
+                      <p className="text-xs text-gray-500 mt-0.5 truncate" title={t.location}>{t.location}</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-0.5">{t.date.replace('T', ' ')} · 添加于 {new Date(t.addedAt).toLocaleString()}</p>
+                  </div>
+                  <div className="shrink-0 text-right flex flex-col items-end gap-2">
+                    <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>
+                    <div className="flex items-center gap-2">
+                      {onEditInline && (
+                        <button onClick={() => onEditInline(t)} className="text-blue-600 hover:text-blue-700 text-sm">编辑</button>
+                      )}
+                      {onDeleteInline && (
+                        <button onClick={() => onDeleteInline(t.id)} className="text-red-600 hover:text-red-700 text-sm">删除</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {toastMsg && (
         <Toast message={toastMsg} onClose={() => setToastMsg(null)} />)
