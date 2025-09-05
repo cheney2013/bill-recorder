@@ -75,12 +75,31 @@ const App: React.FC = () => {
   // Listen for SW update-available
   useEffect(() => {
     const onUpdate = (e: Event) => {
+      // If user chose "稍后" in this session, don't nag again until next open
+      try {
+        if (sessionStorage.getItem('updateDeferredThisSession') === '1') return;
+      } catch {}
       const ev = e as CustomEvent<ServiceWorkerRegistration>;
       setUpdateReg(ev.detail);
       setShowUpdatePrompt(true);
     };
     window.addEventListener('sw-update-available', onUpdate as EventListener);
     return () => window.removeEventListener('sw-update-available', onUpdate as EventListener);
+  }, []);
+
+  // On startup, if there's already a waiting service worker, prompt (unless deferred this session)
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('updateDeferredThisSession') === '1') return;
+    } catch {}
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration().then(reg => {
+        if (reg?.waiting) {
+          setUpdateReg(reg);
+          setShowUpdatePrompt(true);
+        }
+      }).catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
@@ -359,7 +378,13 @@ const App: React.FC = () => {
               <p className="text-sm text-gray-500 mt-0.5">是否立即更新以获取最新功能与修复？</p>
             </div>
             <div className="px-4 py-3 flex items-center justify-end gap-2">
-              <button className="px-3 py-2 rounded-md border border-gray-300 text-sm" onClick={() => setShowUpdatePrompt(false)}>稍后</button>
+              <button
+                className="px-3 py-2 rounded-md border border-gray-300 text-sm"
+                onClick={() => {
+                  setShowUpdatePrompt(false);
+                  try { sessionStorage.setItem('updateDeferredThisSession', '1'); } catch {}
+                }}
+              >稍后</button>
               <button
                 className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm"
                 onClick={() => {

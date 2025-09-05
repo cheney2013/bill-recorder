@@ -2,7 +2,9 @@ import React, { useState, useRef, useCallback } from 'react';
 import { NewTransaction, Transaction } from '../types';
 import { analyzeBillImage } from '../services/geminiService';
 import { fileToBase64 } from '../utils/helpers';
-import { UploadIcon, SpinnerIcon, AlertIcon, XCircleIcon, DocumentIcon } from './icons';
+import { UploadIcon, SpinnerIcon, AlertIcon, XCircleIcon, DocumentIcon, PencilIcon } from './icons';
+import { SwipeToDelete } from './SwipeToDelete';
+import { CategoryBadge } from './TransactionList';
 import { Toast } from './Toast';
 
 interface BillUploaderProps {
@@ -220,32 +222,46 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
             <h3 className="text-base font-semibold text-gray-800">本次新增</h3>
             <span className="text-sm text-gray-500">{lastAdded.length} 条</span>
           </div>
-          <ul className="divide-y divide-gray-100">
-            {lastAdded.map((t) => (
-              <li key={t.id} className="py-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-gray-900 truncate" title={t.name}>{t.name}</p>
-                    {t.location && (
-                      <p className="text-xs text-gray-500 mt-0.5 truncate" title={t.location}>{t.location}</p>
-                    )}
-                    <p className="text-xs text-gray-500 mt-0.5">{t.date.replace('T', ' ')} · 添加于 {new Date(t.addedAt).toLocaleString()}</p>
-                  </div>
-                  <div className="shrink-0 text-right flex flex-col items-end gap-2">
-                    <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>
-                    <div className="flex items-center gap-2">
-                      {onEditInline && (
-                        <button onClick={() => onEditInline(t)} className="text-blue-600 hover:text-blue-700 text-sm">编辑</button>
-                      )}
-                      {onDeleteInline && (
-                        <button onClick={() => onDeleteInline(t.id)} className="text-red-600 hover:text-red-700 text-sm">删除</button>
-                      )}
+          <div className="max-h-[45vh] overflow-y-auto">
+            <ul>
+              {lastAdded.map((t) => (
+                <li key={t.id} className="py-0">
+                  <SwipeToDelete
+                    className="w-full bg-white p-3 md:rounded-lg md:border md:border-gray-200 border-b border-gray-100 rounded-none"
+                    onDelete={() => onDeleteInline && onDeleteInline(t.id)}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900 truncate max-w-[12rem]" title={t.name}>{t.name}</p>
+                          <CategoryBadge category={t.category} />
+                        </div>
+                        {t.location && (
+                          <p className="text-xs text-gray-500 mt-1 truncate" title={t.location}>{t.location}</p>
+                        )}
+                        <p className="text-xs text-gray-500 mt-1">
+                          {t.date.replace('T', ' ')} · 添加于 {new Date(t.addedAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>
+                        {onEditInline && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onEditInline(t); }}
+                            title="编辑"
+                            className="text-blue-600 hover:text-blue-700 p-1.5 rounded-md active:bg-blue-50"
+                            aria-label={`编辑 ${t.name}`}
+                          >
+                            <PencilIcon className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+                  </SwipeToDelete>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 
