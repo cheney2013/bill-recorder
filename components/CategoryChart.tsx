@@ -300,37 +300,40 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
             </div>
           </div>
           {monthlyTransactions.length > 0 ? (
-            <ul className="divide-y divide-gray-100 md:divide-y-0 md:space-y-3 -mx-4 md:mx-0">
-              {monthlyTransactions.map((t) => (
-                <li key={t.id} className="py-0">
-                  <SwipeToDelete className="w-full bg-white p-3 md:rounded-lg md:border md:border-gray-200 rounded-none" onDelete={() => onDeleteClick && onDeleteClick(t.id)}>
-                    <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900 truncate max-w-[12rem]" title={t.name}>{t.name}</p>
-                        <CategoryBadge category={t.category} />
+            // Add bottom padding so last items aren't hidden behind the fixed BottomNavBar (h-16 = 64px) and iOS safe area
+            <div className="overflow-y-auto max-h-[60vh] -mx-4 md:mx-0 pb-[calc(64px+env(safe-area-inset-bottom))] md:pb-0" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+              <ul className="divide-y divide-gray-100 md:divide-y-0 md:space-y-3">
+                {monthlyTransactions.map((t) => (
+                  <li key={t.id} className="py-0">
+                    <SwipeToDelete className="w-full bg-white p-3 md:rounded-lg md:border md:border-gray-200 rounded-none" onDelete={() => onDeleteClick && onDeleteClick(t.id)}>
+                      <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900 truncate max-w-[12rem]" title={t.name}>{t.name}</p>
+                          <CategoryBadge category={t.category} />
+                        </div>
+                        {t.location && (
+                          <p className="text-xs text-gray-500 mt-0.5 truncate" title={t.location}>{t.location}</p>
+                        )}
+                        <p className="text-xs text-gray-500 mt-0.5">{t.date.replace('T', ' ')}</p>
                       </div>
-                      {t.location && (
-                        <p className="text-xs text-gray-500 mt-0.5 truncate" title={t.location}>{t.location}</p>
-                      )}
-                      <p className="text-xs text-gray-500 mt-0.5">{t.date.replace('T', ' ')}</p>
-                    </div>
-                      <div className="shrink-0 text-right flex flex-col items-end gap-2">
-                        <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>
-                        <button
-                          onClick={() => onEditClick && onEditClick(t)}
-                          title="编辑"
-                          className="text-blue-600 hover:text-blue-700 p-1.5 rounded-md active:bg-blue-50"
-                          aria-label={`编辑 ${t.name}`}
-                        >
-                          <PencilIcon className="w-5 h-5" />
-                        </button>
+                        <div className="shrink-0 text-right flex flex-col items-end gap-2">
+                          <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>
+                          <button
+                            onClick={() => onEditClick && onEditClick(t)}
+                            title="编辑"
+                            className="text-blue-600 hover:text-blue-700 p-1.5 rounded-md active:bg-blue-50"
+                            aria-label={`编辑 ${t.name}`}
+                          >
+                            <PencilIcon className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </SwipeToDelete>
-                </li>
-              ))}
-            </ul>
+                    </SwipeToDelete>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : (
             <div className="text-center text-gray-500 py-6">本月暂无记录</div>
           )}

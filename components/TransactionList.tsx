@@ -215,12 +215,26 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
     <div className="md:bg-white md:p-6 p-0 md:rounded-xl md:shadow-md h-full">
   <div className="flex items-center justify-between gap-3 mb-3 md:mb-4">
         <div className="flex items-center gap-2">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索名称/地点/分类/日期/金额"
-            className="block w-60 sm:w-56 md:w-72 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-          />
+          <div className="relative">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜索名称/地点/分类/日期/金额"
+              className={`block w-60 sm:w-56 md:w-72 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${query ? 'pr-8' : ''}`}
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="清空"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
           <button
             onClick={() => setSelectMode(s => { if (s) setSelectedIds(new Set()); return !s; })}
             className={`shrink-0 px-3 py-2 rounded-lg border ${selectMode ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}

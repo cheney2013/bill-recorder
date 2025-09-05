@@ -39,7 +39,7 @@ const billAnalysisSchema = {
     items: billItemSchema
 };
 
-// Heuristics: Map convenience stores to Home (居家)
+// Heuristics: Map convenience stores to Food (餐饮)
 const isConvenienceStore = (nameRaw: unknown): boolean => {
   const name = String(nameRaw || '').toLowerCase();
   if (!name) return false;
@@ -51,17 +51,17 @@ const isConvenienceStore = (nameRaw: unknown): boolean => {
     /mini\s*stop|ミニストップ/i,
     /ok便利|c-?store|喜士多/i,
     /美宜佳|天福便利|today便利|易捷|usmile/i,
-    /コンビニ|セブン|ファミマ|ファミリーマート|ローソン/i,
+  /コンビニ|セブン|セブン[-‐]イレブン|ファミマ|ファミリーマート|ローソン|デイリーヤマザキ|seicomart|セイコーマート|ポプラ|new\s*days/i,
   ];
   return patterns.some((re) => re.test(name));
 };
 
-// Heuristics: Supermarkets → Home (居家)
+// Heuristics: Supermarkets / grocery → Food (餐饮)
 const isSupermarket = (nameRaw: unknown): boolean => {
   const name = String(nameRaw || '').toLowerCase();
   if (!name) return false;
   const patterns: RegExp[] = [
-  /超市|生鲜|生鮮|食品館|食品馆|スーパー|業務スーパー/,
+  /超市|生鲜|生鮮|食品館|食品馆|スーパー|業務スーパー|マート|マーケット|market/i,
     /家乐福|家樂福|carrefour/i,
     /沃尔玛|沃爾瑪|walmart/i,
     /大润发|大潤發|rt[-\s]?mart/i,
@@ -74,7 +74,15 @@ const isSupermarket = (nameRaw: unknown): boolean => {
     /盒马|盒馬|hema|freshippo/i,
   /成城石井/i,
     /ole'?\b/,
-    /永旺|aeon/i,
+  /永旺|aeon(\s*mall)?|イオン|イオンスタイル|イオンフード|イオンフードスタイル|イオンスーパー/i,
+  /西友|seiyu/i,
+  /イトーヨーカドー|伊藤洋华堂|伊藤洋華堂|ito[-\s]?yokado/i,
+  /ライフ\b|life\s*super/i,
+  /サミット|summit\s*store/i,
+  /マルエツ|maruetsu/i,
+  /コープ|生協|coop/i,
+  /オーケー|ok\s*store|ＯＫ\s*ストア/i,
+  /ビッグエー|big\s*-?\s*a/i,
   ];
   return patterns.some((re) => re.test(name));
 };
@@ -84,12 +92,12 @@ const isShoppingCenter = (nameRaw: unknown): boolean => {
   const name = String(nameRaw || '').toLowerCase();
   if (!name) return false;
   const patterns: RegExp[] = [
-    /购物中心|購物中心|商场|商場|百货|百貨|广场|廣場|mall|plaza|ショッピングモール|ショッピングセンター|モール|百貨店/i,
+    // Generic malls and shopping centers (keep these as Shopping)
+    /购物中心|購物中心|商场|商場|广场|廣場|mall|plaza|アウトレット|ショッピング|ショッピングモール|ショッピングセンター|モール/i,
     /万达|wanda/i,
     /万象城|the\s*mixc|mixc/i,
     /大悦城/i,
     /龙湖天街|天街/i,
-    /银泰|intime/i,
     /恒隆|hanglung/i,
     /太古|swire|taikoo/i,
     /来福士|來福士|raffles/i,
@@ -97,6 +105,31 @@ const isShoppingCenter = (nameRaw: unknown): boolean => {
     /ifs|国金|國金/i,
     /吾悦|新城控股/i,
     /宝龙|寶龍|powerlong/i,
+  /イオンモール|aeon\s*mall/i,
+  /parco|パルコ/i,
+  /ヨドバシ|yodobashi|bic\s*camera|ビックカメラ/i,
+  /ドン[・･.]?キホーテ|don\s*quijote|donki/i,
+  ];
+  return patterns.some((re) => re.test(name));
+};
+
+// Heuristics: Department stores (百货/百貨/デパート) → Food (餐饮)
+const isDepartmentStore = (nameRaw: unknown): boolean => {
+  const name = String(nameRaw || '').toLowerCase();
+  if (!name) return false;
+  const patterns: RegExp[] = [
+    /百货|百貨|百貨店|デパート|デパートメント/i,
+    /髙?島屋|takashimaya/i,
+    /三越|mitsukoshi/i,
+    /伊勢丹|isetan/i,
+    /そごう|sogo|西武|seibu/i,
+    /阪急|hankyu/i,
+    /阪神|hanshin/i,
+    /大丸|daimaru/i,
+    /松坂屋|matsuzakaya/i,
+    /0101|丸井|marui/i,
+    /银泰|銀泰|intime/i,
+    /東急\s*(department|百貨)/i,
   ];
   return patterns.some((re) => re.test(name));
 };
@@ -158,12 +191,16 @@ export const analyzeBillImage = async (
 
   const validTransactions: NewTransaction[] = [];
     for (const item of parsedData) {
-      // Apply overrides before validation (priority: pharmacy > conv./supermarket > shopping center)
+      // Apply overrides before validation (priority: pharmacy > conv./supermarket/department → Food; malls and other retail → Shopping)
       let category: Category | undefined = item.category as Category | undefined;
       if (isPharmacy(item.name)) {
         category = Category.Medical;
-      } else if (isConvenienceStore(item.name) || isSupermarket(item.name)) {
-        category = Category.Home;
+      } else if (
+        isConvenienceStore(item.name) ||
+        isSupermarket(item.name) ||
+        isDepartmentStore(item.name)
+      ) {
+        category = Category.Food;
       } else if (isShoppingCenter(item.name)) {
         category = Category.Shopping;
       }
