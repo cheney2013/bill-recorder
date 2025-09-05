@@ -221,7 +221,7 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
   }, []);
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-md">
+    <div className="md:bg-white md:p-6 p-0 md:rounded-xl md:shadow-md">
       <div className="flex justify-between items-center mb-4 gap-3">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold text-gray-800">分类支出</h2>
@@ -300,10 +300,10 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
             </div>
           </div>
           {monthlyTransactions.length > 0 ? (
-            <ul className="space-y-3">
+            <ul className="divide-y divide-gray-100 md:divide-y-0 md:space-y-3 -mx-4 md:mx-0">
               {monthlyTransactions.map((t) => (
                 <li key={t.id} className="py-0">
-                  <SwipeToDelete className="w-full rounded-lg border border-gray-200 p-3 bg-white" onDelete={() => onDeleteClick && onDeleteClick(t.id)}>
+                  <SwipeToDelete className="w-full bg-white p-3 md:rounded-lg md:border md:border-gray-200 rounded-none" onDelete={() => onDeleteClick && onDeleteClick(t.id)}>
                     <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">

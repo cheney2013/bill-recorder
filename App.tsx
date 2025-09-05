@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { BillUploader } from './components/BillUploader';
 import { TransactionList } from './components/TransactionList';
 import { CategoryChart } from './components/CategoryChart';
-import { Transaction, NewTransaction, DeletedItem } from './types';
+import { Transaction, NewTransaction, DeletedItem, Category } from './types';
 import { LogoIcon } from './components/icons';
 import { RecordDetailModal } from './components/RecordDetailModal';
 import { TransactionFormModal } from './components/TransactionFormModal';
@@ -33,6 +33,8 @@ const App: React.FC = () => {
   
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [activeTab, setActiveTab] = useState<Tab>('list');
+  const [updateReg, setUpdateReg] = useState<ServiceWorkerRegistration | null>(null);
+  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
 
   const [trash, setTrash] = useState<DeletedItem[]>(() => {
     try {
@@ -53,6 +55,17 @@ const App: React.FC = () => {
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Listen for SW update-available
+  useEffect(() => {
+    const onUpdate = (e: Event) => {
+      const ev = e as CustomEvent<ServiceWorkerRegistration>;
+      setUpdateReg(ev.detail);
+      setShowUpdatePrompt(true);
+    };
+    window.addEventListener('sw-update-available', onUpdate as EventListener);
+    return () => window.removeEventListener('sw-update-available', onUpdate as EventListener);
   }, []);
 
   useEffect(() => {
@@ -139,6 +152,11 @@ const App: React.FC = () => {
     }
   };
 
+  const handleBulkChangeCategory = (ids: string[], category: Category) => {
+    if (!ids.length) return;
+    setTransactions(prev => prev.map(t => ids.includes(t.id) ? { ...t, category } : t));
+  };
+
   const handleRestoreTransaction = (tx: Transaction) => {
     setTransactions(prev => {
       const exists = prev.some(t => t.name === tx.name && t.date === tx.date && t.amount === tx.amount);
@@ -146,6 +164,20 @@ const App: React.FC = () => {
       return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     });
     setTrash(prev => prev.filter(it => it.tx.id !== tx.id));
+  };
+
+  const handleBulkDeleteTransactions = (ids: string[]) => {
+    if (!ids.length) return;
+    setTransactions(prev => {
+      const toDelete = prev.filter(t => ids.includes(t.id));
+      if (toDelete.length) {
+        setTrash(tr => [
+          ...toDelete.map(tx => ({ tx, deletedAt: new Date().toISOString() })),
+          ...tr,
+        ]);
+      }
+      return prev.filter(t => !ids.includes(t.id));
+    });
   };
 
   const handleImportTransactions = (items: any[]) => {
@@ -206,7 +238,7 @@ const App: React.FC = () => {
             />
           );
         case 'list':
-          return <TransactionList transactions={transactions} onRecordClick={handleShowRecordHistory} onAddClick={() => handleOpenTransactionModal()} onEditClick={(t) => handleOpenTransactionModal(t)} onDeleteClick={handleDeleteTransaction} />;
+          return <TransactionList transactions={transactions} onRecordClick={handleShowRecordHistory} onAddClick={() => handleOpenTransactionModal()} onEditClick={(t) => handleOpenTransactionModal(t)} onDeleteClick={handleDeleteTransaction} onBulkChangeCategory={handleBulkChangeCategory} onBulkDelete={handleBulkDeleteTransactions} />;
         case 'settings':
           return (
             <SettingsPanel
@@ -242,22 +274,24 @@ const App: React.FC = () => {
           />
         </div>
         <div className="lg:col-span-2">
-          <TransactionList transactions={transactions} onRecordClick={handleShowRecordHistory} onAddClick={() => handleOpenTransactionModal()} onEditClick={(t) => handleOpenTransactionModal(t)} onDeleteClick={handleDeleteTransaction} />
+          <TransactionList transactions={transactions} onRecordClick={handleShowRecordHistory} onAddClick={() => handleOpenTransactionModal()} onEditClick={(t) => handleOpenTransactionModal(t)} onDeleteClick={handleDeleteTransaction} onBulkChangeCategory={handleBulkChangeCategory} onBulkDelete={handleBulkDeleteTransactions} />
         </div>
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800">
-      <header className="bg-white shadow-sm fixed top-0 left-0 right-0 z-20">
+    <div className="min-h-screen md:bg-gray-50 bg-white text-gray-800">
+      <header className="bg-white shadow-sm fixed top-0 left-0 right-0 z-20" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="container mx-auto px-4 py-4 flex items-center gap-3">
             <LogoIcon className="h-8 w-8 text-blue-600"/>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">智能账单分析</h1>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">账单小助手</h1>
         </div>
       </header>
-  <main className="container mx-auto p-4 md:p-8 pt-24 pb-28 lg:pb-8" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 7rem)' }}>
-        {renderContent()}
+  <main className="container mx-auto px-0 md:px-8 pb-28 lg:pb-8" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 7rem)', paddingTop: 'calc(env(safe-area-inset-top) + 6rem)' }}>
+        <div className="px-4 md:px-0">
+          {renderContent()}
+        </div>
       </main>
       
       {selectedRecordName && (
@@ -276,6 +310,29 @@ const App: React.FC = () => {
       />
       
       {isMobile && <BottomNavBar activeTab={activeTab} setActiveTab={setActiveTab} />}
+
+      {/* Update available prompt */}
+      {showUpdatePrompt && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4" onClick={() => setShowUpdatePrompt(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-gray-200" onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-gray-200">
+              <h3 className="text-base font-semibold text-gray-900">发现新版本</h3>
+              <p className="text-sm text-gray-500 mt-0.5">是否立即更新以获取最新功能与修复？</p>
+            </div>
+            <div className="px-4 py-3 flex items-center justify-end gap-2">
+              <button className="px-3 py-2 rounded-md border border-gray-300 text-sm" onClick={() => setShowUpdatePrompt(false)}>稍后</button>
+              <button
+                className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm"
+                onClick={() => {
+                  try {
+                    updateReg?.waiting?.postMessage({ type: 'SKIP_WAITING' });
+                  } catch {}
+                }}
+              >立即更新</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="text-center py-6 text-sm text-gray-500 hidden lg:block">
         <p>由 Gemini AI 驱动的智能记账应用</p>

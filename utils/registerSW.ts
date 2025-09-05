@@ -17,21 +17,25 @@ export function registerSW() {
       reg.update().catch(() => {});
       window.addEventListener('focus', () => reg.update().catch(() => {}));
 
-      // If there's an updated SW waiting, tell it to take control immediately
-      const forceActivate = () => {
-        if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      const notifyUpdateAvailable = () => {
+        // Only prompt if this is an update (i.e., there's an active controller already)
+        if (navigator.serviceWorker.controller) {
+          const ev = new CustomEvent<ServiceWorkerRegistration>('sw-update-available', { detail: reg });
+          window.dispatchEvent(ev);
+        }
       };
 
+      // If there's an updated SW waiting after register
+      if (reg.waiting) notifyUpdateAvailable();
+
+      // Listen for new installing worker becoming installed
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
         if (!newWorker) return;
         newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed') forceActivate();
+          if (newWorker.state === 'installed') notifyUpdateAvailable();
         });
       });
-
-      // In case the SW is already waiting right after register
-      forceActivate();
     } catch {
       // noop
     }

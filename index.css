@@ -25,3 +25,9 @@ html {
 body, #root {
   overscroll-behavior: contain;
 }
+
+/* App-level: disable global scrolling; rely on inner scroll areas (lists) */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}

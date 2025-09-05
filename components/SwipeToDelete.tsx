@@ -19,6 +19,7 @@ export const SwipeToDelete: React.FC<SwipeToDeleteProps> = ({ onDelete, children
   const [anim, setAnim] = useState(false);
   const [committing, setCommitting] = useState(false);
   const widthRef = useRef<number>(0);
+  const movedRef = useRef(false);
   const activePointerIdRef = useRef<number | null>(null);
   const commitTimerRef = useRef<number | null>(null);
 
@@ -39,6 +40,7 @@ export const SwipeToDelete: React.FC<SwipeToDeleteProps> = ({ onDelete, children
     widthRef.current = containerRef.current?.getBoundingClientRect().width || 1;
     setAnim(false);
     setCommitting(false);
+  movedRef.current = false;
   }, [committing]);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -52,7 +54,10 @@ export const SwipeToDelete: React.FC<SwipeToDeleteProps> = ({ onDelete, children
     if (next > 0) next = 0;
     if (next < min) next = min;
     // Prevent scrolling and tooltips while swiping
-    if (Math.abs(delta) > 4) e.preventDefault();
+    if (Math.abs(delta) > 4) {
+      e.preventDefault();
+      if (Math.abs(delta) > 6) movedRef.current = true;
+    }
     setDx(next);
     dxRef.current = next;
   }, []);
@@ -104,6 +109,15 @@ export const SwipeToDelete: React.FC<SwipeToDeleteProps> = ({ onDelete, children
     }
   }, [committing]);
 
+  const onClickCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // If a drag happened, swallow the click so row details won't open
+    if (movedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      movedRef.current = false;
+    }
+  }, []);
+
   const onLostPointerCapture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (activePointerIdRef.current !== e.pointerId) return;
     activePointerIdRef.current = null;
@@ -125,15 +139,14 @@ export const SwipeToDelete: React.FC<SwipeToDeleteProps> = ({ onDelete, children
 
   return (
   <div ref={containerRef} className={`relative overflow-hidden ${className || ''}`} style={{ touchAction: 'pan-y', width: '100%' }}
-         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onLostPointerCapture={onLostPointerCapture}>
+         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onLostPointerCapture={onLostPointerCapture}
+         onClickCapture={onClickCapture}>
       {/* Action rail behind content */}
   <div className="absolute inset-0 flex items-stretch justify-end select-none" style={{ opacity: railOpacity, transition: 'opacity 120ms ease-out', pointerEvents: 'none' }}>
         <div
-          className="h-full bg-red-600 text-white font-semibold flex items-center justify-center"
+          className="h-full bg-red-600 text-white font-semibold flex items-center justify-center rounded-none md:rounded-r-lg"
           style={{
             width: committing ? '100%' : `${revealedPx}px`,
-            borderTopRightRadius: '0.5rem',
-            borderBottomRightRadius: '0.5rem',
             transition: committing ? 'width 160ms ease-out' : undefined,
           }}
         >

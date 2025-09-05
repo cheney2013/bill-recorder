@@ -65,7 +65,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ transactions, onIm
   };
 
   return (
-    <div className="bg-white p-4 md:p-6 rounded-xl shadow-md">
+    <div className="md:bg-white md:p-6 p-0 md:rounded-xl md:shadow-md">
       <h2 className="text-lg md:text-xl font-semibold text-gray-800 mb-4">设置</h2>
 
       {message && (

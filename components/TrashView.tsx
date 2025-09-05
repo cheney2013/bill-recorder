@@ -11,7 +11,7 @@ interface TrashViewProps {
 
 export const TrashView: React.FC<TrashViewProps> = ({ items, onBack, onRestore }) => {
   return (
-    <div className="bg-white p-4 md:p-6 rounded-xl shadow-md">
+    <div className="md:bg-white md:p-6 p-0 md:rounded-xl md:shadow-md">
       <div className="flex items-center gap-2 mb-4">
         <button onClick={onBack} className="p-2 rounded-md border border-gray-200 hover:bg-gray-50" title="返回设置">
           <ChevronLeftIcon className="w-5 h-5" />

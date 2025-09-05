@@ -129,7 +129,7 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
   };
 
   return (
-  <div className="bg-white p-6 rounded-xl shadow-md">
+  <div className="md:bg-white md:p-6 p-0 md:rounded-xl md:shadow-md">
       <h2 className="text-xl font-semibold text-gray-800 mb-4">上传账单</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div 
