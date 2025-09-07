@@ -103,7 +103,7 @@ export const SwipeToDelete: React.FC<SwipeToDeleteProps> = ({ onDelete, children
     if (start == null) return;
   const deltaX = e.clientX - start;
   const revealed = Math.abs(baseXRef.current + deltaX);
-    const threshold = widthRef.current * 0.5;
+    const threshold = widthRef.current * 0.3;
   const wasHorizontal = orientationRef.current === 'h';
   orientationRef.current = null;
     if (revealed >= threshold) {

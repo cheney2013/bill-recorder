@@ -26,8 +26,10 @@ body, #root {
   overscroll-behavior: contain;
 }
 
-/* App-level: disable global scrolling; rely on inner scroll areas (lists) */
+/* App-level: allow page scrolling with fixed header/footer */
 html, body, #root {
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
