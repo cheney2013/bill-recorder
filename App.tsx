@@ -10,7 +10,7 @@ import { BottomNavBar } from './components/BottomNavBar';
 import { SettingsPanel } from './components/SettingsPanel';
 import { TrashView } from './components/TrashView';
 
-type Tab = 'upload' | 'chart' | 'list' | 'settings' | 'trash';
+type Tab = 'upload' | 'chart' | 'list' | 'settings' | 'trash' | 'me';
 
 const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
@@ -72,44 +72,34 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Listen for SW update-available
+  // Mobile list tab: only list should scroll. Lock page/body scroll when on list tab; restore otherwise.
   useEffect(() => {
-    const onUpdate = (e: Event) => {
-      // If user chose "稍后" in this session, don't nag again until next open
-      try {
-        if (sessionStorage.getItem('updateDeferredThisSession') === '1') return;
-      } catch {}
-      const ev = e as CustomEvent<ServiceWorkerRegistration>;
-      setUpdateReg(ev.detail);
-      setShowUpdatePrompt(true);
-    };
-    window.addEventListener('sw-update-available', onUpdate as EventListener);
-    return () => window.removeEventListener('sw-update-available', onUpdate as EventListener);
-  }, []);
-
-  // On startup, if there's already a waiting service worker, prompt (unless deferred this session)
-  useEffect(() => {
+    const lock = isMobile && activeTab === 'list';
     try {
-      if (sessionStorage.getItem('updateDeferredThisSession') === '1') return;
+      if (lock) {
+        document.documentElement.style.overflow = 'hidden';
+        document.body.style.overflow = 'hidden';
+        // Avoid overscroll/bounce chaining on iOS PWAs
+        (document.body.style as any).overscrollBehavior = 'none';
+        (document.documentElement.style as any).overscrollBehavior = 'none';
+      } else {
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
+        (document.body.style as any).overscrollBehavior = '';
+        (document.documentElement.style as any).overscrollBehavior = '';
+      }
     } catch {}
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistration().then(reg => {
-        if (reg?.waiting) {
-          setUpdateReg(reg);
-          setShowUpdatePrompt(true);
-        }
-      }).catch(() => {});
-    }
-  }, []);
+    return () => {
+      try {
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
+        (document.body.style as any).overscrollBehavior = '';
+        (document.documentElement.style as any).overscrollBehavior = '';
+      } catch {}
+    };
+  }, [isMobile, activeTab]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('transactions', JSON.stringify(transactions));
-    } catch (error) {
-      console.error("Could not save transactions to localStorage", error);
-    }
-  }, [transactions]);
-
+  // Persist trash and prune items older than 3 days
   useEffect(() => {
     try {
       const now = Date.now();
@@ -279,6 +269,16 @@ const App: React.FC = () => {
               transactions={transactions}
             />
           );
+        case 'me':
+          return (
+            <div className="min-h-[40vh] flex flex-col items-center justify-center text-gray-600">
+              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+                <span className="text-2xl">🙂</span>
+              </div>
+              <p className="text-base">我的（开发中）</p>
+              <p className="text-sm text-gray-400 mt-1">后续将提供个人相关功能</p>
+            </div>
+          );
         case 'chart':
           return (
             <CategoryChart
@@ -350,7 +350,14 @@ const App: React.FC = () => {
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">账单小助手</h1>
         </div>
       </header>
-  <main className="container mx-auto px-0 md:px-8 pb-28 lg:pb-8" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 7rem)', paddingTop: 'calc(env(safe-area-inset-top) + 6rem)' }}>
+      {/* When on mobile list tab, prevent page scroll and let inner list handle it */}
+      <main
+        className="container mx-auto px-0 md:px-8 pb-28 lg:pb-8"
+        style={{
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 7rem)',
+          paddingTop: 'calc(env(safe-area-inset-top) + 6rem)'
+        }}
+      >
         <div className="px-4 md:px-0">
           {renderContent()}
         </div>

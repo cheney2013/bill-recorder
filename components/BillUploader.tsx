@@ -1,10 +1,10 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { NewTransaction, Transaction, Category } from '../types';
-import { analyzeBillImage } from '../services/geminiService';
+import { analyzeBillImage, analyzeBill } from '../services/geminiService';
 import { fileToBase64 } from '../utils/helpers';
 import { UploadIcon, SpinnerIcon, AlertIcon, XCircleIcon, DocumentIcon, PencilIcon, ListBulletIcon, TrashIcon } from './icons';
 import { SwipeToDelete } from './SwipeToDelete';
-import { CategoryBadge } from './TransactionList';
+import { CategoryBadge, LeadingCat } from './TransactionList';
 import { Toast } from './Toast';
 
 interface BillUploaderProps {
@@ -34,11 +34,8 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkModal, setShowBulkModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const listContainerRef = useRef<HTMLDivElement>(null);
   const mobileBulkBarRef = useRef<HTMLDivElement>(null);
-  const aboveContentRef = useRef<HTMLDivElement>(null); // wraps content above the lastAdded section
-  const aboveListRef = useRef<HTMLDivElement>(null); // wraps header + desktop bulk bar above the scroll list
-  const [listMaxPx, setListMaxPx] = useState<number | undefined>();
+  const MAX_FILES = 2;
   const allVisibleIds = React.useMemo(() => lastAdded.map(t => t.id), [lastAdded]);
   const toggleAll = () => {
     setSelectedIds(prev => {
@@ -67,13 +64,21 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
   };
 
   const addFiles = (newFiles: File[]) => {
-    const validFiles = newFiles.filter(file => 
+    const validFilesAll = newFiles.filter(file => 
       file.type.startsWith('image/') || 
       file.type === 'application/pdf' || 
       file.type === 'text/plain' ||
       file.type === 'text/csv'
     );
-    if (validFiles.length === 0) return;
+    if (validFilesAll.length === 0) return;
+
+    // Cap to MAX_FILES total
+    const spaceLeft = Math.max(0, MAX_FILES - selectedFiles.length);
+    if (spaceLeft <= 0) {
+      setToastMsg(`一次最多添加 ${MAX_FILES} 个文件`);
+      return;
+    }
+    const validFiles = validFilesAll.slice(0, spaceLeft);
 
     setSelectedFiles(prev => [...prev, ...validFiles]);
     setError(null);
@@ -123,7 +128,8 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
     const results = await Promise.allSettled(
       selectedFiles.map(async (file) => {
         const base64Image = await fileToBase64(file);
-        return await analyzeBillImage(base64Image, file.type);
+        // return await analyzeBillImage(base64Image, file.type);
+        return await analyzeBill(base64Image, file.type);
       })
     );
     
@@ -139,21 +145,11 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
       }
     });
     
-    if (successfulTransactions.length > 0) {
+  if (successfulTransactions.length > 0) {
       const addedTxs = onAddTransactions(successfulTransactions);
       if (addedTxs.length > 0) {
         setToastMsg(`已添加 ${addedTxs.length} 条记录`);
         setLastAdded(addedTxs);
-        // Reset scroll position and recompute height on next frame
-        setTimeout(() => {
-          try {
-            listContainerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
-          } catch {}
-          try {
-            // Force a fresh measure in case layout shifted
-            (recomputeListMax as any)?.();
-          } catch {}
-        }, 0);
       }
     }
     
@@ -198,51 +194,11 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
     });
   }, [transactions]);
 
-  // Compute dynamic max height for the "本次新增" scroll area so it doesn't overlap the bottom nav or the mobile bulk bar.
-  const recomputeListMax = useCallback(() => {
-    if (!listContainerRef.current) return;
-    const rect = listContainerRef.current.getBoundingClientRect();
-    const viewportH = (window.visualViewport?.height ?? window.innerHeight);
-    // Bottom overlays on mobile: bottom nav (h-16 => 64px) and optional mobile bulk bar when in selectMode
-    const isMobile = window.matchMedia('(max-width: 767.98px)').matches;
-    const BOTTOM_NAV_H = 64; // matches h-16
-    let overlays = 0;
-    if (isMobile) {
-      overlays += BOTTOM_NAV_H;
-      if (selectMode && mobileBulkBarRef.current) {
-        overlays += mobileBulkBarRef.current.getBoundingClientRect().height;
-      }
-    }
-    const margin = 12; // small breathing room
-    const computed = Math.max(120, Math.floor(viewportH - rect.top - overlays - margin));
-    setListMaxPx(computed);
-  }, [selectMode]);
-
-  useEffect(() => {
-    // Recompute when list appears, window resizes, visual viewport/safe-area changes, select mode toggles
-    const onResize = () => recomputeListMax();
-    const onOrientation = () => recomputeListMax();
-    recomputeListMax();
-    // Observe dynamic height changes above
-    const ro = 'ResizeObserver' in window ? new ResizeObserver(() => recomputeListMax()) : null;
-    if (ro) {
-      if (aboveContentRef.current) ro.observe(aboveContentRef.current);
-      if (aboveListRef.current) ro.observe(aboveListRef.current);
-    }
-    window.addEventListener('resize', onResize);
-    window.addEventListener('orientationchange', onOrientation);
-    window.visualViewport?.addEventListener('resize', onResize);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('orientationchange', onOrientation);
-      window.visualViewport?.removeEventListener('resize', onResize);
-    };
-  }, [recomputeListMax, lastAdded.length, selectMode]);
+  // Upload page scrolls as a whole; no inner scroll calculations are needed
 
   return (
   <div className="md:bg-white md:p-6 p-0 md:rounded-xl md:shadow-md">
-      <div ref={aboveContentRef}>
+      <div>
         <h2 className="text-xl font-semibold text-gray-800 mb-4">上传账单</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
         <div 
@@ -326,7 +282,7 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
 
       {lastAdded.length > 0 && (
         <div className="mt-4">
-          <div ref={aboveListRef}>
+          <div>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-base font-semibold text-gray-800">本次新增</h3>
               <div className="flex items-center gap-2">
@@ -372,7 +328,7 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
               </div>
             )}
           </div>
-          <div ref={listContainerRef} className="overflow-y-auto" style={listMaxPx ? { maxHeight: `${listMaxPx}px` } : undefined}>
+          <div>
             <ul>
               {lastAdded.map((t) => (
                 <li key={t.id} className="py-0">
@@ -381,17 +337,17 @@ export const BillUploader: React.FC<BillUploaderProps> = ({ onAddTransactions, i
                     onDelete={() => onDeleteInline && onDeleteInline(t.id)}
                   >
                     <div className="flex items-start justify-between gap-3" onClick={() => selectMode ? toggleOne(t.id) : undefined} role="button" aria-label={selectMode ? (selectedIds.has(t.id) ? '取消选择' : '选择此项') : undefined}>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <LeadingCat category={t.category} />
+                        <div className="min-w-0">
                           <p className="font-medium text-gray-900 truncate max-w-[12rem]" title={t.name}>{t.name}</p>
-                          <CategoryBadge category={t.category} />
+                          {t.location && (
+                            <p className="text-xs text-gray-500 mt-1 truncate" title={t.location}>{t.location}</p>
+                          )}
+                          <p className="text-xs text-gray-500 mt-1">
+                            {t.date.replace('T', ' ')} · 添加于 {new Date(t.addedAt).toLocaleString()}
+                          </p>
                         </div>
-                        {t.location && (
-                          <p className="text-xs text-gray-500 mt-1 truncate" title={t.location}>{t.location}</p>
-                        )}
-                        <p className="text-xs text-gray-500 mt-1">
-                          {t.date.replace('T', ' ')} · 添加于 {new Date(t.addedAt).toLocaleString()}
-                        </p>
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { DeletedItem, Transaction } from '../types';
-import { CategoryBadge } from './TransactionList';
+import { CategoryBadge, LeadingCat } from './TransactionList';
 import { ChevronLeftIcon } from './icons';
 
 interface TrashViewProps {
@@ -28,16 +28,16 @@ export const TrashView: React.FC<TrashViewProps> = ({ items, onBack, onRestore }
         <ul className="divide-y divide-gray-100">
           {items.map(({ tx, deletedAt }) => (
             <li key={`${tx.id}-${deletedAt}`} className="py-3 flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-nowrap">
-                  <p className="font-medium text-gray-900 truncate min-w-0 flex-1" title={tx.name}>{tx.name}</p>
-                  <CategoryBadge category={tx.category} />
-                </div>
+              <div className="min-w-0 flex-1 flex items-start gap-3">
+                <LeadingCat category={tx.category} />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-gray-900 truncate min-w-0" title={tx.name}>{tx.name}</p>
                 {tx.location && (
                   <p className="text-xs text-gray-500 mt-0.5 truncate" title={tx.location}>{tx.location}</p>
                 )}
                 <p className="text-xs text-gray-500 mt-0.5">原日期：{tx.date.replace('T', ' ')}</p>
                 <p className="text-xs text-gray-400">删除时间：{new Date(deletedAt).toLocaleString()}</p>
+                </div>
               </div>
               <div className="shrink-0 text-right flex flex-col items-end gap-2">
                 <span className="font-mono font-semibold text-gray-900">¥{tx.amount.toFixed(2)}</span>

@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Transaction, Category } from '../types';
 import { CATEGORY_COLORS } from '../constants';
-import { PlusIcon, PencilIcon, TrashIcon, BarsArrowDownIcon } from './icons';
+import { PlusIcon, PencilIcon, TrashIcon, BarsArrowDownIcon, FoodIcon, TransportIcon, ShoppingIcon, EntertainmentIcon, HomeIcon, MedicalIcon, EducationIcon, TransferIcon, OtherIcon } from './icons';
 import { SwipeToDelete } from './SwipeToDelete';
 import { VariableSizeList as List, ListChildComponentProps } from 'react-window';
 
@@ -15,18 +15,40 @@ interface TransactionListProps {
   onBulkDelete?: (ids: string[]) => void;
 }
 
-export const CategoryBadge: React.FC<{ category: Transaction['category'] }> = ({ category }) => (
+const CatIcon: React.FC<{ cat: Category; className?: string }> = ({ cat, className }) => {
+  const common = className || 'w-4 h-4';
+  switch (cat) {
+    case Category.Food: return <FoodIcon className={common} />;
+    case Category.Transport: return <TransportIcon className={common} />;
+    case Category.Shopping: return <ShoppingIcon className={common} />;
+    case Category.Entertainment: return <EntertainmentIcon className={common} />;
+    case Category.Home: return <HomeIcon className={common} />;
+    case Category.Medical: return <MedicalIcon className={common} />;
+    case Category.Education: return <EducationIcon className={common} />;
+    case Category.Transfer: return <TransferIcon className={common} />;
+    default: return <OtherIcon className={common} />;
+  }
+};
+
+export const CategoryBadge: React.FC<{ category: Transaction['category'] }> = React.memo(({ category }) => (
   <span
-    className="px-2 py-1 text-xs font-semibold leading-tight rounded-full whitespace-nowrap max-w-[8rem] truncate inline-flex"
+    className="px-2 py-1 text-xs font-semibold leading-tight rounded-full whitespace-nowrap max-w-[9rem] truncate inline-flex items-center gap-1"
     style={{ 
-      backgroundColor: `${CATEGORY_COLORS[category]}33`, // Add alpha for background
+      backgroundColor: `${CATEGORY_COLORS[category]}22`,
       color: CATEGORY_COLORS[category]
     }}
     title={category}
   >
-    {category}
+    <CatIcon cat={category} className="w-5 h-5" />
+    <span className="hidden sm:inline">{category}</span>
   </span>
-);
+));
+
+export const LeadingCat: React.FC<{ category: Category }> = React.memo(({ category }) => (
+  <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 text-gray-700 shrink-0">
+    <CatIcon cat={category} className="w-6 h-6" />
+  </span>
+));
 
 
 type FlatItem =
@@ -63,7 +85,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
     });
   }, [transactions, q]);
   const items = useMemo<FlatItem[]>(() => {
-    // Group by YYYY-MM, keep original order (assumed desc by date)
+    // Build the flat list once; include month headers when not sorting by added time
     if (!sortByAddedTime) {
       const groups = new Map<string, Transaction[]>();
       for (const t of filtered) {
@@ -71,7 +93,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
         if (!groups.has(ym)) groups.set(ym, []);
         groups.get(ym)!.push(t);
       }
-      // Sort months desc
       const sortedMonths = Array.from(groups.keys()).sort((a, b) => (a < b ? 1 : -1));
       const flat: FlatItem[] = [];
       for (const ym of sortedMonths) {
@@ -83,7 +104,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
       return flat;
     }
     // Sort by addedAt (desc) without month headers
-    const flat: FlatItem[] = filtered
+    return filtered
       .slice()
       .sort((a, b) => {
         const ta = a.addedAt ? new Date(a.addedAt).getTime() : 0;
@@ -91,19 +112,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
         return tb - ta;
       })
       .map(tx => ({ type: 'item', key: tx.id, tx }));
-    return flat;
   }, [filtered, sortByAddedTime]);
-
-  const { monthOrder, monthGroups } = useMemo(() => {
-    const groups = new Map<string, Transaction[]>();
-    for (const t of filtered) {
-      const ym = (t.date || '').slice(0, 7);
-      if (!groups.has(ym)) groups.set(ym, []);
-      groups.get(ym)!.push(t);
-    }
-    const months = Array.from(groups.keys()).sort((a, b) => (a < b ? 1 : -1));
-    return { monthOrder: months, monthGroups: groups };
-  }, [filtered]);
 
   const getMobileItemSize = (index: number) => {
     const it = items[index];
@@ -113,6 +122,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
   };
 
   const listRef = useRef<any>(null);
+  const desktopListRef = useRef<any>(null);
   // Multi-select state
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -157,6 +167,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
   useEffect(() => {
     // Reset cached measurements when items change to prevent stale rows/headers
     listRef.current?.resetAfterIndex?.(0, true);
+  desktopListRef.current?.resetAfterIndex?.(0, true);
   }, [items]);
 
   const RowMobile = ({ index, style }: ListChildComponentProps) => {
@@ -185,22 +196,21 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
             aria-label={`查看 ${t.name} 的记录`}
           >
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
+            <div className="flex items-start gap-3 min-w-0">
+              <LeadingCat category={t.category} />
+              <div className="min-w-0">
                 <p className="font-medium text-gray-900 truncate max-w-[12rem]" title={t.name}>{t.name}</p>
-                <CategoryBadge category={t.category} />
+                <div className="mt-1 text-xs text-gray-500 flex items-center gap-2">
+                  <span className="hidden sm:inline">{t.date.replace('T', ' ')}</span>
+                  {t.location && <span className="truncate" title={t.location}>{t.location}</span>}
+                </div>
               </div>
               {t.location && (
-                <p className="text-xs text-gray-500 mt-1 truncate" title={t.location}>{t.location}</p>
+                <></>
               )}
-              <p className="text-xs text-gray-500 mt-1">
-                {t.date.replace('T', ' ')}
-                {sortByAddedTime && t.addedAt && (
-                  <>
-                    {' '}· 添加于 {new Date(t.addedAt).toLocaleString()}
-                  </>
-                )}
-              </p>
+              {sortByAddedTime && t.addedAt && (
+                <p className="text-xs text-gray-400 mt-1">添加于 {new Date(t.addedAt).toLocaleString()}</p>
+              )}
             </div>
             <div className="flex flex-col items-end gap-2">
               <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>
@@ -231,52 +241,121 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
       </div>
     );
   };
-  return (
-    <div className="md:bg-white md:p-6 p-0 md:rounded-xl md:shadow-md h-full">
-  <div className="flex items-center justify-between gap-3 mb-3 md:mb-4">
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索名称/地点/分类/日期/金额"
-              className={`block w-60 sm:w-56 md:w-72 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${query ? 'pr-8' : ''}`}
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery('')}
-                aria-label="清空"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+
+  // Desktop virtualized row renderer (md+)
+  const getDesktopItemSize = (index: number) => {
+    const it = items[index];
+    return it.type === 'header' ? 44 : 64;
+  };
+
+  const DesktopRow = ({ index, style }: ListChildComponentProps) => {
+    const it = items[index];
+    if (it.type === 'header') {
+      return (
+        <div style={style} className="bg-gray-50">
+          <div className="px-6 py-3 text-sm md:text-base font-semibold text-gray-700 text-center">
+            {formatMonthLabel(it.month)}
+          </div>
+        </div>
+      );
+    }
+    const t = it.tx;
+    return (
+      <div style={style} className="bg-white border-b group transition-colors hover:bg-gray-50">
+        <div className="grid grid-cols-[45%_7rem_11rem_8rem_7rem] items-center">
+          <div
+            className="px-6 py-3 font-medium text-gray-900 cursor-pointer align-top min-w-0"
+            onClick={() => onRecordClick(t.name)}
+            title="点击查看此项目的所有记录"
+          >
+            <div className="flex items-start gap-3 min-w-0">
+              <LeadingCat category={t.category} />
+              <div className="min-w-0">
+                <div className="truncate" title={t.name}>{t.name}</div>
+                {t.location && <div className="text-xs text-gray-500 truncate" title={t.location}>{t.location}</div>}
+                {sortByAddedTime && t.addedAt && (
+                  <div className="text-xs text-gray-400">添加于 {new Date(t.addedAt).toLocaleString()}</div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="px-6 py-3 cursor-pointer" onClick={() => onRecordClick(t.name)}>
+            <LeadingCat category={t.category} />
+          </div>
+          <div className="px-6 py-3 whitespace-nowrap cursor-pointer" onClick={() => onRecordClick(t.name)}>{t.date.replace('T', ' ')}</div>
+          <div className="px-6 py-3 text-right font-mono text-gray-900 cursor-pointer" onClick={() => onRecordClick(t.name)}>
+            ¥{t.amount.toFixed(2)}
+          </div>
+          <div className="px-6 py-3 text-center">
+            {selectMode ? (
+              selectedIds.has(t.id) ? (
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </span>
+              ) : (
+                <span className="inline-block w-6 h-6" aria-hidden="true"></span>
+              )
+            ) : (
+              <div className="flex items-center justify-center gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={(e) => { e.stopPropagation(); onEditClick(t); }} title="编辑" className="text-blue-500 hover:text-blue-700 p-1">
+                  <PencilIcon className="w-5 h-5" />
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); onDeleteClick(t.id); }} title="删除" className="text-red-500 hover:text-red-700 p-1">
+                  <TrashIcon className="w-5 h-5" />
+                </button>
+              </div>
             )}
           </div>
-          <button
-            onClick={() => setSelectMode(s => { if (s) setSelectedIds(new Set()); return !s; })}
-            className={`shrink-0 px-3 py-2 rounded-lg border ${selectMode ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-          >{selectMode ? '取消' : '多选'}</button>
-          <button
-            onClick={() => setSortByAddedTime(v => !v)}
-            className={`shrink-0 p-2 rounded-lg border ${sortByAddedTime ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-            title={sortByAddedTime ? '按添加时间降序（激活）' : '按账单日期分组'}
-            aria-pressed={sortByAddedTime}
-            aria-label={sortByAddedTime ? '切换为按月份分组' : '切换为按添加时间排序'}
-          >
-            <BarsArrowDownIcon className="w-6 h-6" />
-          </button>
-          <button
-            onClick={onAddClick}
-            title="新增记录"
-            aria-label="新增记录"
-            className="shrink-0 p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
-          >
-            <PlusIcon className="w-6 h-6" />
-          </button>
         </div>
+      </div>
+    );
+  };
+  return (
+    <div className="md:bg-white md:p-6 p-0 md:rounded-xl md:shadow-md h-full">
+      <div className="flex items-center gap-2 mb-3 md:mb-4">
+        <div className="relative flex-1 min-w-0">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="搜索名称/地点/分类/日期/金额"
+            className={`block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${query ? 'pr-8' : ''}`}
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label="清空"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => setSelectMode(s => { if (s) setSelectedIds(new Set()); return !s; })}
+          className={`shrink-0 px-3 py-2 rounded-lg border ${selectMode ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+        >{selectMode ? '取消' : '多选'}</button>
+        <button
+          onClick={() => setSortByAddedTime(v => !v)}
+          className={`shrink-0 p-2 rounded-lg border ${sortByAddedTime ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+          title={sortByAddedTime ? '按添加时间降序（激活）' : '按账单日期分组'}
+          aria-pressed={sortByAddedTime}
+          aria-label={sortByAddedTime ? '切换为按月份分组' : '切换为按添加时间排序'}
+        >
+          <BarsArrowDownIcon className="w-6 h-6" />
+        </button>
+        <button
+          onClick={onAddClick}
+          title="新增记录"
+          aria-label="新增记录"
+          className="shrink-0 p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
+        >
+          <PlusIcon className="w-6 h-6" />
+        </button>
       </div>
 
       {/* 桌面端顶部批量条：移动端隐藏；进入多选后移动端只显示底部条 */}
@@ -370,85 +449,36 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
         </div>
       )}
 
-  {/* Desktop/tablet table */}
-  <div className="hidden md:block overflow-x-auto">
-  {filtered.length > 0 ? (
-      <table className="w-full text-sm text-left text-gray-500 table-fixed">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-10">
-              <tr>
-        <th scope="col" className="px-6 py-3 w-[45%]">名称</th>
-        <th scope="col" className="px-6 py-3 w-28">分类</th>
-        <th scope="col" className="px-6 py-3 w-44">日期</th>
-        <th scope="col" className="px-6 py-3 text-right w-32">金额</th>
-        <th scope="col" className="px-6 py-3 text-center w-28">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {monthOrder.map((ym) => (
-                monthGroups.get(ym) && monthGroups.get(ym)!.length > 0 ? (
-                <React.Fragment key={`grp-${ym}`}>
-                  <tr className="bg-gray-50">
-                    <td colSpan={5} className="px-6 py-3 text-sm md:text-base font-semibold text-gray-700 text-center">{formatMonthLabel(ym)}</td>
-                  </tr>
-                  {monthGroups.get(ym)!.map((t) => (
-                    <tr
-                      key={t.id}
-                      className="bg-white border-b group transition-colors hover:bg-gray-50"
-                    >
-                      <td
-                        className="px-6 py-4 font-medium text-gray-900 cursor-pointer align-top"
-                        onClick={() => onRecordClick(t.name)}
-                        title="点击查看此项目的所有记录"
-                      >
-                        <div className="min-w-0 max-w-full">
-                          <div className="truncate" title={t.name}>{t.name}</div>
-                          {t.location && <div className="text-xs text-gray-500 truncate" title={t.location}>{t.location}</div>}
-                          {sortByAddedTime && t.addedAt && (
-                            <div className="text-xs text-gray-400">添加于 {new Date(t.addedAt).toLocaleString()}</div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 cursor-pointer" onClick={() => onRecordClick(t.name)}><CategoryBadge category={t.category} /></td>
-                      <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => onRecordClick(t.name)}>{t.date.replace('T', ' ')}</td>
-                      <td className="px-6 py-4 text-right font-mono text-gray-900 cursor-pointer" onClick={() => onRecordClick(t.name)}>
-                        ¥{t.amount.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {selectMode ? (
-                          selectedIds.has(t.id) ? (
-                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white">
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                              </svg>
-                            </span>
-                          ) : (
-                            <span className="inline-block w-6 h-6" aria-hidden="true"></span>
-                          )
-                        ) : (
-                          <div className="flex items-center justify-center gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={(e) => { e.stopPropagation(); onEditClick(t); }} title="编辑" className="text-blue-500 hover:text-blue-700 p-1">
-                              <PencilIcon className="w-5 h-5" />
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); onDeleteClick(t.id); }} title="删除" className="text-red-500 hover:text-red-700 p-1">
-                              <TrashIcon className="w-5 h-5" />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </React.Fragment>
-                ) : null
-              ))}
-            </tbody>
-          </table>
-    ) : (
-          <div className="text-center py-12 text-gray-500">
-      <p className="font-semibold">未找到匹配的记录</p>
-      <p className="mt-1 text-sm">换个关键词试试，或清空搜索。</p>
-          </div>
-        )}
+  {/* Desktop/tablet virtualized list */}
+  <div className="hidden md:block">
+    {items.length > 0 ? (
+      <div className="md:bg-white md:rounded-xl md:shadow-md overflow-hidden">
+        <div className="sticky top-0 z-10 bg-gray-100 text-xs text-gray-700 uppercase grid grid-cols-[45%_7rem_11rem_8rem_7rem] px-6 py-3">
+          <div>名称</div>
+          <div>分类</div>
+          <div>日期</div>
+          <div className="text-right">金额</div>
+          <div className="text-center">操作</div>
+        </div>
+        <List
+          ref={desktopListRef}
+          height={Math.max(420, Math.round(vh - 320))}
+          itemCount={items.length}
+          itemSize={getDesktopItemSize}
+          itemKey={(index) => items[index].key}
+          width={'100%'}
+          className="overflow-auto"
+        >
+          {DesktopRow}
+        </List>
       </div>
+    ) : (
+      <div className="text-center py-12 text-gray-500">
+        <p className="font-semibold">未找到匹配的记录</p>
+        <p className="mt-1 text-sm">换个关键词试试，或清空搜索。</p>
+      </div>
+    )}
+  </div>
 
       {showBulkModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowBulkModal(false)}>

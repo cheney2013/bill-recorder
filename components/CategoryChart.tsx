@@ -1,9 +1,9 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { Transaction } from '../types';
 import { CATEGORY_COLORS } from '../constants';
 import { PencilIcon, TrashIcon, BarsArrowDownIcon } from './icons';
-import { CategoryBadge } from './TransactionList';
+import { LeadingCat } from './TransactionList';
 import { SwipeToDelete } from './SwipeToDelete';
 
 interface CategoryChartProps {
@@ -302,22 +302,23 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
             </div>
           </div>
           {monthlyTransactions.length > 0 ? (
-            // Add bottom padding so last items aren't hidden behind the fixed BottomNavBar (h-16 = 64px) and iOS safe area
-            <div className="overflow-y-auto max-h-[60vh] -mx-4 md:mx-0 pb-[calc(64px+env(safe-area-inset-bottom))] md:pb-0" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
+            <div className="-mx-4 md:mx-0">
               <ul className="divide-y divide-gray-100 md:divide-y-0 md:space-y-3">
                 {monthlyTransactions.map((t) => (
                   <li key={t.id} className="py-0">
                     <SwipeToDelete className="w-full bg-white p-3 md:rounded-lg md:border md:border-gray-200 rounded-none" onDelete={() => onDeleteClick && onDeleteClick(t.id)}>
                       <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-gray-900 truncate max-w-[12rem]" title={t.name}>{t.name}</p>
-                          <CategoryBadge category={t.category} />
+                        <div className="flex items-start gap-3 min-w-0">
+                          <LeadingCat category={t.category} />
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 truncate max-w-[12rem]" title={t.name}>{t.name}</p>
+                            {t.location && (
+                              <p className="text-xs text-gray-500 mt-0.5 truncate" title={t.location}>{t.location}</p>
+                            )}
+                            <p className="text-xs text-gray-500 mt-0.5">{t.date.replace('T', ' ')}</p>
+                          </div>
                         </div>
-                        {t.location && (
-                          <p className="text-xs text-gray-500 mt-0.5 truncate" title={t.location}>{t.location}</p>
-                        )}
-                        <p className="text-xs text-gray-500 mt-0.5">{t.date.replace('T', ' ')}</p>
                       </div>
                         <div className="shrink-0 text-right flex flex-col items-end gap-2">
                           <span className="font-mono font-semibold text-gray-900">¥{t.amount.toFixed(2)}</span>
@@ -335,7 +336,7 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
                   </li>
                 ))}
                 {/* Spacer to prevent last items from being hidden by the fixed BottomNavBar on mobile */}
-                <li aria-hidden className="md:hidden" style={{ height: 'calc(170px + env(safe-area-inset-bottom))' }} />
+                <li aria-hidden className="md:hidden" style={{ height: 'calc(96px + env(safe-area-inset-bottom))' }} />
               </ul>
             </div>
           ) : (

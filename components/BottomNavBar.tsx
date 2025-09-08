@@ -1,7 +1,7 @@
 import React from 'react';
-import { UploadIcon, ChartPieIcon, ListBulletIcon, SettingsIcon } from './icons';
+import { UploadIcon, ChartPieIcon, ListBulletIcon, SettingsIcon, PlusIcon, UserIcon } from './icons';
 
-type Tab = 'upload' | 'chart' | 'list' | 'settings';
+type Tab = 'upload' | 'chart' | 'list' | 'settings' | 'trash' | 'me';
 
 interface BottomNavBarProps {
   activeTab: Tab;
@@ -13,6 +13,7 @@ const navItems = [
     { id: 'chart', label: '图表', icon: ChartPieIcon },
     { id: 'upload', label: '记账', icon: UploadIcon },
     { id: 'settings', label: '设置', icon: SettingsIcon },
+    { id: 'me', label: '我的', icon: UserIcon },
 ];
 
 export const BottomNavBar: React.FC<BottomNavBarProps> = ({ activeTab, setActiveTab }) => {
@@ -24,16 +25,39 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({ activeTab, setActive
                         <div className="flex justify-around items-center h-16" role="tablist" aria-label="底部导航">
                 {navItems.map((item) => {
                     const isActive = activeTab === item.id;
+                    const commonClick = () => {
+                        requestAnimationFrame(() => setActiveTab(item.id as Tab));
+                    };
+                    // Special, prominent middle action for "upload"
+                    if (item.id === 'upload') {
+                        return (
+                            <button
+                                key={item.id}
+                                role="tab"
+                                aria-selected={isActive}
+                                aria-label="记账"
+                                onClick={commonClick}
+                                className="relative flex flex-col items-center justify-center w-full h-full text-sm font-medium focus:outline-none"
+                                style={{
+                                    // Ensure the central button can rise without being clipped
+                                    overflow: 'visible',
+                                }}
+                            >
+                                <span className="-translate-y-3 inline-flex items-center justify-center w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg ring-4 ring-blue-100">
+                                    <PlusIcon className="w-7 h-7" />
+                                </span>
+                                <span className={`mt-0.5 ${isActive ? 'text-blue-600' : 'text-gray-600'}`}>{item.label}</span>
+                            </button>
+                        );
+                    }
+                    // Default items
                     return (
                         <button
                             key={item.id}
-                                                        role="tab"
-                                                        aria-selected={isActive}
-                                                        onClick={() => {
-                                                            // Ensure state update runs after click; avoid event swallowing due to focus changes
-                                                            requestAnimationFrame(() => setActiveTab(item.id as Tab));
-                                                        }}
-                                                        className={`flex flex-col items-center justify-center w-full h-full text-sm font-medium transition-colors duration-200 ${isActive ? 'text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
+                            role="tab"
+                            aria-selected={isActive}
+                            onClick={commonClick}
+                            className={`flex flex-col items-center justify-center w-full h-full text-sm font-medium transition-colors duration-200 ${isActive ? 'text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}
                         >
                             <item.icon className="w-6 h-6 mb-1" />
                             <span>{item.label}</span>
