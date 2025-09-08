@@ -30,6 +30,15 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const isEdit = !!transaction;
   const [amountStr, setAmountStr] = useState<string>('0');
+  const dateLabel = useMemo(() => {
+    const fmt = (s: string) => s.replace(/-/g, '/').slice(0, 10); // YYYY/MM/DD
+    try {
+      if (formData.date) return fmt(formData.date);
+      return fmt(new Date().toISOString());
+    } catch {
+      return fmt(new Date().toISOString());
+    }
+  }, [formData.date]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -255,6 +264,7 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
                 type="datetime-local"
                 value={formData.date}
                 onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                step={60}
                 className="sr-only"
                 tabIndex={-1}
                 aria-hidden="true"
@@ -299,12 +309,13 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
               {(() => {
                 const hasOp = /[+\-]/.test(amountStr);
                 const actionKey = hasOp ? '=' : '完成';
-                const keys = ['7','8','9','今天','4','5','6','+','1','2','3','-','0','.','⌫', actionKey];
+                const dateKey = dateLabel; // show date precise to day
+                const keys = ['7','8','9', dateKey,'4','5','6','+','1','2','3','-','0','.','⌫', actionKey];
                 return (
                   <div className="grid grid-cols-4 gap-2 select-none">
                     {keys.map((k) => {
                       const primary = k === '=' || k === '完成';
-                      const secondary = ['今天','+','-','⌫'].includes(k);
+                      const secondary = [dateKey,'+','-','⌫'].includes(k);
                       const keyStyle = primary
                         ? 'bg-blue-600 text-white hover:bg-blue-700'
                         : secondary
@@ -316,13 +327,13 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
                           type="button"
                           onClick={(e) => {
                             e.preventDefault();
-                            if (k === '今天') { openDatePicker(); return; }
+                            if (k === dateKey) { openDatePicker(); return; }
                             if (k === '⌫') { onKey('back'); return; }
                             if (k === '完成') { onKey('done'); return; }
                             if (k === '+' || k === '-' || k === '=' ) { onKey(k); return; }
                             onKey(k);
                           }}
-                          className={`py-3 rounded-md ${keyStyle} active:scale-95 transition-transform`}
+                          className={`py-3 rounded-md ${keyStyle} ${k === dateKey ? 'text-sm' : ''} active:scale-95 transition-transform`}
                         >
                           {k}
                         </button>

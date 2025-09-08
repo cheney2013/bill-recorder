@@ -14,6 +14,7 @@ interface TransactionListProps {
   onDeleteClick: (transactionId: string) => void;
   onBulkChangeCategory?: (ids: string[], category: Category) => void;
   onBulkDelete?: (ids: string[]) => void;
+  onSelectModeChange?: (active: boolean) => void;
 }
 
 const CatIcon: React.FC<{ cat: Category; className?: string }> = ({ cat, className }) => {
@@ -64,7 +65,7 @@ const formatMonthLabel = (ym: string) => {
   }
 };
 
-export const TransactionList: React.FC<TransactionListProps> = ({ resetToken, transactions, onRecordClick, onAddClick, onEditClick, onDeleteClick, onBulkChangeCategory, onBulkDelete }) => {
+export const TransactionList: React.FC<TransactionListProps> = ({ resetToken, transactions, onRecordClick, onAddClick, onEditClick, onDeleteClick, onBulkChangeCategory, onBulkDelete, onSelectModeChange }) => {
   const [query, setQuery] = useState('');
   const [sortByAddedTime, setSortByAddedTime] = useState(false);
   const q = query.trim().toLowerCase();
@@ -133,6 +134,10 @@ export const TransactionList: React.FC<TransactionListProps> = ({ resetToken, tr
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkModal, setShowBulkModal] = useState(false);
+  // Notify parent when select mode toggles (to hide/show bottom nav in App)
+  useEffect(() => {
+    onSelectModeChange?.(selectMode);
+  }, [selectMode, onSelectModeChange]);
 
   // Observe container sizes so List uses exact available height (no magic constants)
   useEffect(() => {
@@ -236,8 +241,10 @@ export const TransactionList: React.FC<TransactionListProps> = ({ resetToken, tr
               <div className="min-w-0">
                 <p className="font-medium text-gray-900 truncate max-w-[12rem]" title={t.name}>{t.name}</p>
                 <div className="mt-1 text-xs text-gray-500 flex items-center gap-2">
-                  <span className="hidden sm:inline">{t.date.replace('T', ' ')}</span>
                   {t.location && <span className="truncate" title={t.location}>{t.location}</span>}
+                </div>
+                <div className="mt-1 text-xs text-gray-500 flex items-center gap-2">
+                  <span>{t.date.replace('T', ' ')}</span>
                 </div>
               </div>
               {t.location && (
@@ -444,7 +451,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ resetToken, tr
 
       {/* Mobile fixed bottom bulk bar (above bottom nav) */}
       {selectMode && (
-        <div className="md:hidden fixed left-0 right-0 z-40 pointer-events-none" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 4.1rem)' }}>
+        <div className="md:hidden fixed left-0 right-0 z-40 pointer-events-none" style={{ bottom: 'env(safe-area-inset-bottom)' }}>
           <div className="bg-white/95 pointer-events-auto">
             <div className="px-4" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 10px)' }}>
               <div className="text-xs text-gray-600 text-center">已选 {selectedIds.size} 项</div>

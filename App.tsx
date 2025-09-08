@@ -52,6 +52,7 @@ const App: React.FC = () => {
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const middleRef = useRef<HTMLDivElement | null>(null);
   const [listResetSeq, setListResetSeq] = useState(0);
+  const [listSelectMode, setListSelectMode] = useState(false);
 
   const [trash, setTrash] = useState<DeletedItem[]>(() => {
     try {
@@ -293,7 +294,19 @@ const App: React.FC = () => {
             />
           );
         case 'list':
-          return <TransactionList resetToken={listResetSeq} transactions={transactions} onRecordClick={handleShowRecordHistory} onAddClick={() => handleOpenTransactionModal()} onEditClick={(t) => handleOpenTransactionModal(t)} onDeleteClick={handleDeleteTransaction} onBulkChangeCategory={handleBulkChangeCategory} onBulkDelete={handleBulkDeleteTransactions} />;
+          return (
+            <TransactionList
+              resetToken={listResetSeq}
+              transactions={transactions}
+              onRecordClick={handleShowRecordHistory}
+              onAddClick={() => handleOpenTransactionModal()}
+              onEditClick={(t) => handleOpenTransactionModal(t)}
+              onDeleteClick={handleDeleteTransaction}
+              onBulkChangeCategory={handleBulkChangeCategory}
+              onBulkDelete={handleBulkDeleteTransactions}
+              onSelectModeChange={setListSelectMode}
+            />
+          );
         case 'settings':
           return (
             <SettingsPanel
@@ -339,7 +352,17 @@ const App: React.FC = () => {
           />
         </div>
         <div className="lg:col-span-2">
-          <TransactionList resetToken={listResetSeq} transactions={transactions} onRecordClick={handleShowRecordHistory} onAddClick={() => handleOpenTransactionModal()} onEditClick={(t) => handleOpenTransactionModal(t)} onDeleteClick={handleDeleteTransaction} onBulkChangeCategory={handleBulkChangeCategory} onBulkDelete={handleBulkDeleteTransactions} />
+          <TransactionList
+            resetToken={listResetSeq}
+            transactions={transactions}
+            onRecordClick={handleShowRecordHistory}
+            onAddClick={() => handleOpenTransactionModal()}
+            onEditClick={(t) => handleOpenTransactionModal(t)}
+            onDeleteClick={handleDeleteTransaction}
+            onBulkChangeCategory={handleBulkChangeCategory}
+            onBulkDelete={handleBulkDeleteTransactions}
+            onSelectModeChange={setListSelectMode}
+          />
         </div>
       </div>
     );
@@ -387,7 +410,7 @@ const App: React.FC = () => {
         transaction={editingTransaction}
       />
       
-  {isMobile && <BottomNavBar activeTab={activeTab} setActiveTab={setActiveTab} />}
+  {isMobile && !listSelectMode && <BottomNavBar activeTab={activeTab} setActiveTab={setActiveTab} />}
 
       {/* Update available prompt */}
       {showUpdatePrompt && (
