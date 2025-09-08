@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { BillUploader } from './components/BillUploader';
 import { TransactionList } from './components/TransactionList';
 import { CategoryChart } from './components/CategoryChart';
@@ -50,6 +50,8 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('list');
   const [updateReg, setUpdateReg] = useState<ServiceWorkerRegistration | null>(null);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
+  const middleRef = useRef<HTMLDivElement | null>(null);
+  const [listResetSeq, setListResetSeq] = useState(0);
 
   const [trash, setTrash] = useState<DeletedItem[]>(() => {
     try {
@@ -72,22 +74,13 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Mobile list tab: only list should scroll. Lock page/body scroll when on list tab; restore otherwise.
+  // Lock global page scroll; only the middle area (between header and bottom nav) scrolls.
   useEffect(() => {
-    const lock = isMobile && activeTab === 'list';
     try {
-      if (lock) {
-        document.documentElement.style.overflow = 'hidden';
-        document.body.style.overflow = 'hidden';
-        // Avoid overscroll/bounce chaining on iOS PWAs
-        (document.body.style as any).overscrollBehavior = 'none';
-        (document.documentElement.style as any).overscrollBehavior = 'none';
-      } else {
-        document.documentElement.style.overflow = '';
-        document.body.style.overflow = '';
-        (document.body.style as any).overscrollBehavior = '';
-        (document.documentElement.style as any).overscrollBehavior = '';
-      }
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      (document.body.style as any).overscrollBehavior = 'none';
+      (document.documentElement.style as any).overscrollBehavior = 'none';
     } catch {}
     return () => {
       try {
@@ -97,7 +90,7 @@ const App: React.FC = () => {
         (document.documentElement.style as any).overscrollBehavior = '';
       } catch {}
     };
-  }, [isMobile, activeTab]);
+  }, []);
 
   // Persist trash and prune items older than 3 days
   useEffect(() => {
@@ -252,6 +245,16 @@ const App: React.FC = () => {
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, selectedRecordName]);
 
+  // Reset middle scroll on tab change; also trigger list internal reset when entering list tab
+  useEffect(() => {
+    try {
+      middleRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+    } catch {}
+    if (activeTab === 'list') {
+      setListResetSeq((s) => s + 1);
+    }
+  }, [activeTab]);
+
   const renderContent = () => {
     if (isMobile) {
       switch (activeTab) {
@@ -290,7 +293,7 @@ const App: React.FC = () => {
             />
           );
         case 'list':
-          return <TransactionList transactions={transactions} onRecordClick={handleShowRecordHistory} onAddClick={() => handleOpenTransactionModal()} onEditClick={(t) => handleOpenTransactionModal(t)} onDeleteClick={handleDeleteTransaction} onBulkChangeCategory={handleBulkChangeCategory} onBulkDelete={handleBulkDeleteTransactions} />;
+          return <TransactionList resetToken={listResetSeq} transactions={transactions} onRecordClick={handleShowRecordHistory} onAddClick={() => handleOpenTransactionModal()} onEditClick={(t) => handleOpenTransactionModal(t)} onDeleteClick={handleDeleteTransaction} onBulkChangeCategory={handleBulkChangeCategory} onBulkDelete={handleBulkDeleteTransactions} />;
         case 'settings':
           return (
             <SettingsPanel
@@ -336,32 +339,38 @@ const App: React.FC = () => {
           />
         </div>
         <div className="lg:col-span-2">
-          <TransactionList transactions={transactions} onRecordClick={handleShowRecordHistory} onAddClick={() => handleOpenTransactionModal()} onEditClick={(t) => handleOpenTransactionModal(t)} onDeleteClick={handleDeleteTransaction} onBulkChangeCategory={handleBulkChangeCategory} onBulkDelete={handleBulkDeleteTransactions} />
+          <TransactionList resetToken={listResetSeq} transactions={transactions} onRecordClick={handleShowRecordHistory} onAddClick={() => handleOpenTransactionModal()} onEditClick={(t) => handleOpenTransactionModal(t)} onDeleteClick={handleDeleteTransaction} onBulkChangeCategory={handleBulkChangeCategory} onBulkDelete={handleBulkDeleteTransactions} />
         </div>
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen md:bg-gray-50 bg-white text-gray-800">
+    <div className="min-h-screen md:bg-gray-50 bg-white text-gray-800 overflow-hidden">
       <header className="bg-white shadow-sm fixed top-0 left-0 right-0 z-20" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="container mx-auto px-4 py-4 flex items-center gap-3">
             <LogoIcon className="h-8 w-8 text-blue-600"/>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">账单小助手</h1>
         </div>
       </header>
-      {/* When on mobile list tab, prevent page scroll and let inner list handle it */}
-      <main
-        className="container mx-auto px-0 md:px-8 pb-28 lg:pb-8"
+      {/* Fixed middle scroll area between header and bottom nav */}
+      <div
+        className="fixed left-0 right-0"
         style={{
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 7rem)',
-          paddingTop: 'calc(env(safe-area-inset-top) + 6rem)'
+          top: 'calc(env(safe-area-inset-top) + 4rem)',
+          bottom: isMobile ? 'calc(env(safe-area-inset-bottom) + 4rem)' : '0',
+          overflowY: activeTab === 'list' ? 'hidden' : 'auto',
+          overflowX: 'hidden',
+          paddingTop: '1rem'
         }}
+        ref={middleRef}
       >
-        <div className="px-4 md:px-0">
-          {renderContent()}
+        <div className="container mx-auto px-0 md:px-8 h-full">
+          <div className="px-4 md:px-0 h-full">
+            {renderContent()}
+          </div>
         </div>
-      </main>
+      </div>
       
       {selectedRecordName && (
           <RecordDetailModal
@@ -378,7 +387,7 @@ const App: React.FC = () => {
         transaction={editingTransaction}
       />
       
-      {isMobile && <BottomNavBar activeTab={activeTab} setActiveTab={setActiveTab} />}
+  {isMobile && <BottomNavBar activeTab={activeTab} setActiveTab={setActiveTab} />}
 
       {/* Update available prompt */}
       {showUpdatePrompt && (

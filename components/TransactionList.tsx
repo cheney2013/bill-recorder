@@ -6,6 +6,7 @@ import { SwipeToDelete } from './SwipeToDelete';
 import { VariableSizeList as List, ListChildComponentProps } from 'react-window';
 
 interface TransactionListProps {
+  resetToken?: number;
   transactions: Transaction[];
   onRecordClick: (recordName: string) => void;
   onAddClick: () => void;
@@ -63,7 +64,7 @@ const formatMonthLabel = (ym: string) => {
   }
 };
 
-export const TransactionList: React.FC<TransactionListProps> = ({ transactions, onRecordClick, onAddClick, onEditClick, onDeleteClick, onBulkChangeCategory, onBulkDelete }) => {
+export const TransactionList: React.FC<TransactionListProps> = ({ resetToken, transactions, onRecordClick, onAddClick, onEditClick, onDeleteClick, onBulkChangeCategory, onBulkDelete }) => {
   const [query, setQuery] = useState('');
   const [sortByAddedTime, setSortByAddedTime] = useState(false);
   const q = query.trim().toLowerCase();
@@ -123,17 +124,39 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
   const listRef = useRef<any>(null);
   const desktopListRef = useRef<any>(null);
+  // Containers to measure available heights for virtualized lists
+  const mobileContainerRef = useRef<HTMLDivElement | null>(null);
+  const desktopContainerRef = useRef<HTMLDivElement | null>(null);
+  const [mobileHeight, setMobileHeight] = useState(0);
+  const [desktopHeight, setDesktopHeight] = useState(0);
   // Multi-select state
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [vh, setVh] = useState(() => (typeof window !== 'undefined' ? window.innerHeight : 800));
 
+  // Observe container sizes so List uses exact available height (no magic constants)
   useEffect(() => {
-    const onResize = () => setVh(window.innerHeight);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
+    const cleanups: Array<() => void> = [];
+    const setup = (el: HTMLElement | null, set: (h: number) => void) => {
+      if (!el) return;
+      const update = () => set(el.clientHeight);
+      update();
+      const hasRO = typeof window !== 'undefined' && 'ResizeObserver' in window;
+      if (hasRO) {
+        const RO = (window as any).ResizeObserver;
+        const ro = new RO(() => update());
+        ro.observe(el);
+        cleanups.push(() => ro.disconnect());
+      } else {
+        window.addEventListener('resize', update);
+        cleanups.push(() => window.removeEventListener('resize', update));
+      }
+    };
+    setup(mobileContainerRef.current, setMobileHeight);
+    setup(desktopContainerRef.current, setDesktopHeight);
+    return () => { cleanups.forEach(fn => fn()); };
+    // Re-evaluate when layout-affecting state changes
+  }, [items.length, selectMode]);
 
   const toggleOne = (id: string) => {
     setSelectedIds(prev => {
@@ -169,6 +192,18 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
     listRef.current?.resetAfterIndex?.(0, true);
   desktopListRef.current?.resetAfterIndex?.(0, true);
   }, [items]);
+
+  // Scroll to top on external reset (e.g., tab switch)
+  useEffect(() => {
+    try {
+      const el: HTMLElement | undefined = listRef.current?._outerRef || listRef.current?._scrollingContainer;
+      el?.scrollTo?.({ top: 0, behavior: 'auto' });
+    } catch {}
+    try {
+      const el2: HTMLElement | undefined = desktopListRef.current?._outerRef || desktopListRef.current?._scrollingContainer;
+      el2?.scrollTo?.({ top: 0, behavior: 'auto' });
+    } catch {}
+  }, [resetToken]);
 
   const RowMobile = ({ index, style }: ListChildComponentProps) => {
     const it = items[index];
@@ -313,7 +348,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
     );
   };
   return (
-    <div className="md:bg-white md:p-6 p-0 md:rounded-xl md:shadow-md h-full">
+    <div className="md:bg-white md:p-6 p-0 md:rounded-xl md:shadow-md h-full flex flex-col">
       <div className="flex items-center gap-2 mb-3 md:mb-4">
         <div className="relative flex-1 min-w-0">
           <input
@@ -380,29 +415,32 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
         </div>
       )}
 
-    {/* Mobile edge-to-edge list with grouping + virtualization */}
-  <div className="md:hidden">
-        {items.length > 0 ? (
-          <div className="-mx-4 md:mx-0">
-            <List
-              ref={listRef}
-              height={Math.max(420, Math.round(vh - 220))}
-              itemCount={items.length}
-              itemSize={getMobileItemSize}
-              itemKey={(index) => items[index].key}
-              width={'100%'}
-              className="overflow-auto"
-            >
-              {RowMobile}
-            </List>
-          </div>
-        ) : (
-          <div className="text-center py-10 text-gray-500">
-            <p className="font-semibold">暂无记录</p>
-            <p className="mt-1 text-sm">上传账单或手动新增一条记录。</p>
-          </div>
-        )}
-      </div>
+      {/* Content area fills remaining height */}
+      <div className="flex-1 min-h-0">
+        {/* Mobile edge-to-edge list with grouping + virtualization */}
+  <div className="md:hidden h-full" ref={mobileContainerRef}>
+          {items.length > 0 ? (
+            <div className="-mx-4 md:mx-0 h-full">
+              <List
+                ref={listRef}
+    height={Math.max(0, mobileHeight)}
+                itemCount={items.length}
+                itemSize={getMobileItemSize}
+                itemKey={(index) => items[index].key}
+                width={'100%'}
+                className="overflow-auto"
+                style={{ overflowX: 'hidden' }}
+              >
+                {RowMobile}
+              </List>
+            </div>
+          ) : (
+            <div className="text-center py-10 text-gray-500">
+              <p className="font-semibold">暂无记录</p>
+              <p className="mt-1 text-sm">上传账单或手动新增一条记录。</p>
+            </div>
+          )}
+        </div>
 
       {/* Mobile fixed bottom bulk bar (above bottom nav) */}
       {selectMode && (
@@ -449,36 +487,40 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
         </div>
       )}
 
-  {/* Desktop/tablet virtualized list */}
-  <div className="hidden md:block">
-    {items.length > 0 ? (
-      <div className="md:bg-white md:rounded-xl md:shadow-md overflow-hidden">
-        <div className="sticky top-0 z-10 bg-gray-100 text-xs text-gray-700 uppercase grid grid-cols-[45%_7rem_11rem_8rem_7rem] px-6 py-3">
-          <div>名称</div>
-          <div>分类</div>
-          <div>日期</div>
-          <div className="text-right">金额</div>
-          <div className="text-center">操作</div>
+        {/* Desktop/tablet virtualized list */}
+        <div className="hidden md:flex md:flex-col h-full">
+          {items.length > 0 ? (
+            <div className="md:bg-white md:rounded-xl md:shadow-md overflow-hidden flex flex-col h-full">
+              <div className="sticky top-0 z-10 bg-gray-100 text-xs text-gray-700 uppercase grid grid-cols-[45%_7rem_11rem_8rem_7rem] px-6 py-3">
+                <div>名称</div>
+                <div>分类</div>
+                <div>日期</div>
+                <div className="text-right">金额</div>
+                <div className="text-center">操作</div>
+              </div>
+        <div className="flex-1 min-h-0" ref={desktopContainerRef}>
+                <List
+                  ref={desktopListRef}
+          height={Math.max(0, desktopHeight)}
+                  itemCount={items.length}
+                  itemSize={getDesktopItemSize}
+                  itemKey={(index) => items[index].key}
+                  width={'100%'}
+                  className="overflow-auto"
+                  style={{ overflowX: 'hidden' }}
+                >
+                  {DesktopRow}
+                </List>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              <p className="font-semibold">未找到匹配的记录</p>
+              <p className="mt-1 text-sm">换个关键词试试，或清空搜索。</p>
+            </div>
+          )}
         </div>
-        <List
-          ref={desktopListRef}
-          height={Math.max(420, Math.round(vh - 320))}
-          itemCount={items.length}
-          itemSize={getDesktopItemSize}
-          itemKey={(index) => items[index].key}
-          width={'100%'}
-          className="overflow-auto"
-        >
-          {DesktopRow}
-        </List>
       </div>
-    ) : (
-      <div className="text-center py-12 text-gray-500">
-        <p className="font-semibold">未找到匹配的记录</p>
-        <p className="mt-1 text-sm">换个关键词试试，或清空搜索。</p>
-      </div>
-    )}
-  </div>
 
       {showBulkModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowBulkModal(false)}>

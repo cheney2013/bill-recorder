@@ -335,8 +335,6 @@ export const CategoryChart: React.FC<CategoryChartProps> = ({ transactions, curr
                     </SwipeToDelete>
                   </li>
                 ))}
-                {/* Spacer to prevent last items from being hidden by the fixed BottomNavBar on mobile */}
-                <li aria-hidden className="md:hidden" style={{ height: 'calc(96px + env(safe-area-inset-bottom))' }} />
               </ul>
             </div>
           ) : (
