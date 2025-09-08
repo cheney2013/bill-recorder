@@ -41,16 +41,14 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
         date: transaction.date.slice(0, 16),
         location: transaction.location || '',
       });
-  setAmountStr(String(transaction.amount));
+      setAmountStr(String(transaction.amount));
     } else {
       // Use last chosen category/location as convenient defaults
       try {
         const lastCategory = localStorage.getItem('lastCategory') as Category | null;
-        const lastLocation = localStorage.getItem('lastLocation') || '';
         setFormData({
           ...initialFormState,
           category: lastCategory && (Object.values(Category) as string[]).includes(lastCategory) ? (lastCategory as Category) : initialFormState.category,
-          location: lastLocation,
           date: new Date().toISOString().slice(0, 16),
         });
       } catch {
